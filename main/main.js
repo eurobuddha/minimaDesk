@@ -50,7 +50,7 @@ function createWindow() {
           try { require("fs").writeFileSync(process.env.MDESK_SHOT, img.toPNG()); console.log("[shot] saved"); }
           catch (e) { console.log("[shot] fail", e.message); }
         });
-      }, 12000);
+      }, Number(process.env.MDESK_SHOT_MS) || 12000);
     }
   }
 
@@ -87,7 +87,7 @@ app.whenReady().then(() => {
 ipcMain.on("diag", (_e, m) => { if (!app.isPackaged) console.log("[R]", m); });
 ipcMain.handle("node:snapshot", () => node.snapshot());
 ipcMain.handle("node:logs", () => node.logs.slice(-300));
-ipcMain.handle("node:ports", () => ({ base: config.basePort(), rpc: config.rpcPort(), mds: config.mdsPort() }));
+ipcMain.handle("node:ports", () => ({ base: config.basePort(), rpc: config.rpcPort(), mds: config.mdsPort(), appVersion: app.getVersion() }));
 
 /** Run any node command over RPC (management: mds action:list / install / uninstall, maxima, status…). */
 ipcMain.handle("rpc:cmd", async (_e, command) => {

@@ -1,7 +1,7 @@
 {
   "name": "minimadesk",
   "productName": "minimaDesk",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "A polished desktop MiniDapp platform — runs a full Minima classic node and opens installed MDS MiniDapps as tabs. MiniHub, in a party dress.",
   "author": "eurobuddha",
   "license": "MIT",
@@ -19,27 +19,62 @@
   "build": {
     "appId": "com.eurobuddha.minimadesk",
     "productName": "minimaDesk",
-    "files": ["main/**", "renderer/**", "!**/*.map"],
+    "files": [
+      "main/**",
+      "renderer/**",
+      "!**/*.map"
+    ],
     "extraResources": [
-      { "from": "resources/minima.jar", "to": "minima.jar" },
-      { "from": "resources/jre", "to": "jre" }
+      {
+        "from": "resources/minima.jar",
+        "to": "minima.jar"
+      },
+      {
+        "from": "resources/jre",
+        "to": "jre"
+      }
     ],
     "mac": {
       "category": "public.app-category.finance",
       "icon": "build/icon.icns",
       "identity": null,
-      "target": [{ "target": "dmg", "arch": ["arm64"] }]
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
     },
     "win": {
       "icon": "build/icon.png",
-      "target": [{ "target": "nsis", "arch": ["x64"] }]
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
     },
-    "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    },
     "linux": {
       "icon": "build/icon.png",
       "category": "Finance",
       "maintainer": "eurobuddha <eurobuddha@gmail.com>",
-      "target": [{ "target": "AppImage", "arch": ["x64"] }]
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
     }
   }
 }

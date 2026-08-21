@@ -3,138 +3,192 @@
 <head>
 <meta charset="utf-8" />
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; img-src 'self' data:;" />
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; img-src 'self' data: https://127.0.0.1:* https://localhost:*;" />
 <title>minimaDesk</title>
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+<div class="app">
+
   <!-- ============ title bar + tab strip (dark chrome, drag region) ============ -->
-  <div class="chrome" id="chrome">
-    <div class="macgap"></div>                       <!-- room for native traffic lights on macOS -->
-    <div class="tabs" id="tabs"></div>
-    <div class="newtab" id="newtab" title="Open launcher">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+  <div class="titlebar" id="titlebar">
+    <div class="macgap"></div>                <!-- room for native traffic lights on macOS -->
+    <div class="brand">
+      <svg class="mmark" viewBox="0 0 32 32" fill="none">
+        <path d="M4 25V10.5c0-1 1.2-1.5 1.9-.8L11 15l5.1-5.3c.6-.6 1.6-.2 1.6.7V25" stroke="url(#mg)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M17.7 25V10.5c0-1 1.2-1.5 1.9-.8L24.7 15l3.3-3.4c.7-.7 1.9-.2 1.9.8V25" stroke="url(#mg2)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>
+        <defs>
+          <linearGradient id="mg" x1="4" y1="9" x2="18" y2="25"><stop stop-color="#FF7358"/><stop offset="1" stop-color="#FF512F"/></linearGradient>
+          <linearGradient id="mg2" x1="17" y1="9" x2="30" y2="25"><stop stop-color="#FF512F"/><stop offset="1" stop-color="#FE3918"/></linearGradient>
+        </defs>
+      </svg>
+      <b>minima<span>Desk</span></b>
     </div>
-    <div class="spacer"></div>
+    <div class="tabs" id="tabs"></div>
+    <div class="tab add" id="newtab" title="Install a MiniDapp">＋</div>
+    <div class="tb-spacer"></div>
     <div class="tool" id="opterminal" data-open="terminal" title="Terminal">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z" opacity=".0"/><path d="M6 8l4 4-4 4"/><path d="M12 16h6"/></svg>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l4 4-4 4"/><path d="M12 16h6"/></svg>
     </div>
     <div class="tool" id="oplogs" data-open="logs" title="Node logs">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M8 10h8M8 14h8M8 18h5"/></svg>
     </div>
     <div class="nodechip" id="nodechip" title="Node status">
-      <span class="pulse" id="chippulse"><i></i></span>
-      <span class="lbl" id="chiplbl">starting</span>
-      <span class="h mono" id="chipblock">—</span>
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="opacity:.5"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="seg"><span class="pulse" id="chippulse"><i></i></span><span class="k">Node</span><span class="v" id="chipblock">—</span></div>
+      <div class="seg"><span class="k">Peers</span><span class="v" id="chippeers">—</span></div>
+      <div class="seg"><span class="k">Maxima</span><span class="v mx" id="chipmax">—</span></div>
     </div>
   </div>
 
-  <!-- ============ stage: the Home launcher + one webview per open dapp ============ -->
-  <div class="stage" id="stage">
-    <section class="view" id="home">
-      <div class="hero">
-        <div class="lede">
-          <div class="eyebrow">
-            <svg width="14" height="14" viewBox="0 0 32 32" fill="none"><path d="M4 25V10l6 8 6-8 6 8 6-8v15" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <span id="eyebrow">Starting node…</span>
+  <!-- ============ body: left rail + stage ============ -->
+  <div class="body">
+
+    <!-- LEFT RAIL: search + library categories + local-node card -->
+    <aside class="rail">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg>
+        <input id="search" placeholder="Search MiniDapps" spellcheck="false" autocomplete="off" />
+        <kbd class="mono">⌘K</kbd>
+      </div>
+      <div class="rail-h">Library</div>
+      <div id="cats"></div>
+      <div class="rail-foot">
+        <div class="nodecard" id="nodecard" title="Node status">
+          <div class="nc-top">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.5 2.5M16.5 16.5L19 19M19 5l-2.5 2.5M7.5 16.5L5 19"/><circle cx="12" cy="12" r="3.2"/></svg>
+            <b>Local node</b><span class="status" id="nc-status">starting</span>
           </div>
-          <h1 id="greeting">Welcome. <span class="dim">Bringing your node online.</span></h1>
-          <div class="sub" id="herosub">Booting the Minima node, MDS and Maxima…</div>
-        </div>
-        <div class="stat">
-          <div class="lab">Chain height</div>
-          <div class="fig mono"><span class="pulse" id="statpulse"><i></i></span><span id="statblock">—</span></div>
+          <div class="nc-row"><span class="k">Chain height</span><span class="v mono" id="nc-block">—</span></div>
+          <div class="nc-row"><span class="k">Balance</span><span class="v mono" id="nc-balance">—</span></div>
+          <div class="nc-row"><span class="k">Maxima</span><span class="v" id="nc-maxima">—</span></div>
+          <div class="nc-bar"><i id="nc-sync"></i></div>
         </div>
       </div>
+    </aside>
 
-      <div class="install" id="installcard">
-        <div class="zicon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+    <!-- STAGE: home launcher · one webview per dapp · native panels -->
+    <main class="stage" id="stage">
+
+      <!-- HOME (the launcher view) -->
+      <section class="view home" id="home">
+        <div class="cascade" id="cascade"><span class="spark"></span></div>
+        <div class="wrap">
+
+          <!-- HERO: featured dapp + live node aura -->
+          <section class="hero" id="hero">
+            <div class="hero-l">
+              <span class="hero-eyebrow" id="hero-eyebrow">Featured today</span>
+              <div class="hero-idrow">
+                <div class="hero-icon" id="hero-icon"></div>
+                <div class="hero-titles">
+                  <h1 id="hero-name">—</h1>
+                  <p id="hero-sub"></p>
+                </div>
+              </div>
+              <p class="hero-desc" id="hero-desc"></p>
+              <div class="hero-cta" id="hero-cta"></div>
+            </div>
+            <div class="hero-r">
+              <div class="aura-label">Node · live</div>
+              <div class="aura-stat">
+                <div class="n mono" id="hero-block">—</div>
+                <div class="u" id="hero-u">bringing your node online…</div>
+              </div>
+              <div class="aura-mini">
+                <div><div class="m mono" id="am-peers">—</div><div class="l">Peers</div></div>
+                <div><div class="m mono mxc" id="am-maxima">—</div><div class="l">Maxima</div></div>
+                <div><div class="m mono" id="am-dapps">—</div><div class="l">MiniDapps</div></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- CONTINUE strip (recently opened) -->
+          <section class="sec" id="continue-sec" data-static hidden>
+            <div class="sec-head"><h2>Continue</h2><span class="sub">where you left off</span></div>
+            <div class="strip" id="strip"></div>
+          </section>
+
+          <!-- CATEGORY SECTIONS injected here -->
+          <div id="sections"></div>
+
+          <div class="empty" id="empty" hidden></div>
+
+          <div class="foot">
+            <div id="foot-left">Waiting for MDS…</div>
+            <div class="fr">
+              <button class="linklike" id="foot-install">Install a MiniDapp…</button>
+              <span>minimaDesk <code id="foot-ver">—</code></span>
+              <span>node <code id="foot-node">—</code></span>
+            </div>
+          </div>
         </div>
-        <div class="ztxt">
-          <b>Install a MiniDapp</b>
-          <p>Choose a <code>.mds.zip</code>. It opens in a new tab once you approve its permissions.</p>
+      </section>
+
+      <!-- one <webview> per open dapp lives here -->
+      <div class="webviews" id="webviews"></div>
+
+      <!-- native first-party panels (logs + terminal) -->
+      <section class="native" id="logsview" style="display:none">
+        <div class="nbar"><b>Node logs</b><span class="grow"></span>
+          <button class="btn ghost sm" id="logs-clear">Clear</button>
+          <label class="chk"><input type="checkbox" id="logs-follow" checked> follow</label>
         </div>
-        <button class="btn primary" id="installbtn">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-          Install
-        </button>
-      </div>
+        <pre class="logs mono" id="logs-pre"></pre>
+      </section>
 
-      <div class="sec">
-        <div class="lt"><h2>Installed</h2><span class="count mono" id="count">0</span></div>
-        <div class="search">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
-          <input id="search" placeholder="Search MiniDapps…" spellcheck="false" />
+      <section class="native" id="termview" style="display:none">
+        <div class="nbar"><b>Terminal</b><span class="grow"></span>
+          <span class="hint">RPC to your node · try <code>status</code>, <code>balance</code>, <code>maxima action:info</code></span>
         </div>
-      </div>
-
-      <div class="grid" id="grid"><div class="empty" id="empty">Waiting for MDS…</div></div>
-    </section>
-
-    <div class="webviews" id="webviews"></div>
-
-    <!-- native first-party panels (logs + terminal), shown one at a time -->
-    <section class="native" id="logsview" hidden>
-      <div class="nbar"><b>Node logs</b><span class="grow"></span>
-        <button class="btn ghost sm" id="logs-clear">Clear</button>
-        <label class="chk"><input type="checkbox" id="logs-follow" checked> follow</label>
-      </div>
-      <pre class="logs mono" id="logs-pre"></pre>
-    </section>
-
-    <section class="native" id="termview" hidden>
-      <div class="nbar"><b>Terminal</b><span class="grow"></span>
-        <span class="hint">RPC to your node · try <code>status</code>, <code>balance</code>, <code>maxima action:info</code></span>
-      </div>
-      <div class="term mono" id="term-out"></div>
-      <div class="term-in">
-        <span class="prompt-mark mono">minima&nbsp;›</span>
-        <input id="term-input" class="mono" spellcheck="false" autocomplete="off" placeholder="type a command and press ⏎" />
-      </div>
-    </section>
+        <div class="term mono" id="term-out"></div>
+        <div class="term-in">
+          <span class="prompt-mark mono">minima&nbsp;›</span>
+          <input id="term-input" class="mono" spellcheck="false" autocomplete="off" placeholder="type a command and press ⏎" />
+        </div>
+      </section>
+    </main>
   </div>
+</div>
 
-  <!-- node status popover -->
-  <div class="pop" id="nodepop" hidden>
-    <div class="head">
-      <b>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.4"/><circle cx="5" cy="6" r="1.8"/><circle cx="19" cy="6" r="1.8"/><circle cx="5" cy="18" r="1.8"/><circle cx="19" cy="18" r="1.8"/><path d="M6.6 7.1l3.8 3.4M17.4 7.1l-3.8 3.4M6.6 16.9l3.8-3.4M17.4 16.9l-3.8-3.4"/></svg>
-        Node status
-      </b>
-      <span class="statuspill" id="popstatus"><span class="pulse" style="transform:scale(.8)"><i></i></span>—</span>
-    </div>
-    <div class="body">
-      <div class="kv"><span class="k">Chain height</span><span class="v ok mono" id="pv-block">—</span></div>
-      <div class="kv"><span class="k">Connections</span><span class="v mono" id="pv-conns">—</span></div>
-      <div class="kv"><span class="k">Maxima</span><span class="v mono" id="pv-maxima">—</span></div>
-      <div class="kv"><span class="k">Ports</span><span class="v mono" id="pv-ports">—</span></div>
-      <div class="kv"><span class="k">Node version</span><span class="v mono" id="pv-ver">—</span></div>
-      <div class="addr-lbl">Your Maxima contact address</div>
-      <div class="addr">
-        <code class="mono" id="pv-addr">—</code>
-        <span class="cp" id="pv-copy" title="Copy full address">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
-        </span>
-      </div>
+<!-- node status popover (full, copyable Maxima address) -->
+<div class="pop" id="nodepop" hidden>
+  <div class="head">
+    <b>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.4"/><circle cx="5" cy="6" r="1.8"/><circle cx="19" cy="6" r="1.8"/><circle cx="5" cy="18" r="1.8"/><circle cx="19" cy="18" r="1.8"/><path d="M6.6 7.1l3.8 3.4M17.4 7.1l-3.8 3.4M6.6 16.9l3.8-3.4M17.4 16.9l-3.8-3.4"/></svg>
+      Node status
+    </b>
+    <span class="statuspill" id="popstatus"><span class="pulse" style="transform:scale(.8)"><i></i></span>—</span>
+  </div>
+  <div class="body">
+    <div class="kv"><span class="k">Chain height</span><span class="v ok mono" id="pv-block">—</span></div>
+    <div class="kv"><span class="k">Connections</span><span class="v mono" id="pv-conns">—</span></div>
+    <div class="kv"><span class="k">Maxima</span><span class="v mono" id="pv-maxima">—</span></div>
+    <div class="kv"><span class="k">Ports</span><span class="v mono" id="pv-ports">—</span></div>
+    <div class="kv"><span class="k">Node version</span><span class="v mono" id="pv-ver">—</span></div>
+    <div class="addr-lbl">Your Maxima contact address</div>
+    <div class="addr">
+      <code class="mono" id="pv-addr">—</code>
+      <span class="cp" id="pv-copy" title="Copy full address">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+      </span>
     </div>
   </div>
+</div>
 
-  <!-- permission prompt (shown when a dapp is pending) -->
-  <div class="scrim" id="scrim" hidden></div>
-  <div class="prompt" id="prompt" hidden>
-    <div class="ph">
-      <div class="ic" id="pr-ic">?</div>
-      <div><b id="pr-name">MiniDapp</b><span id="pr-meta"></span></div>
-    </div>
-    <p class="ask" id="pr-ask"></p>
-    <div class="btns">
-      <button class="btn ghost" id="pr-deny">Deny</button>
-      <button class="btn primary" id="pr-allow">Allow</button>
-    </div>
+<!-- permission prompt (shown when a dapp is pending) -->
+<div class="scrim" id="scrim" hidden></div>
+<div class="prompt" id="prompt" hidden>
+  <div class="ph">
+    <div class="ic" id="pr-ic">?</div>
+    <div><b id="pr-name">MiniDapp</b><span id="pr-meta"></span></div>
   </div>
+  <p class="ask" id="pr-ask"></p>
+  <div class="btns">
+    <button class="btn ghost" id="pr-deny">Deny</button>
+    <button class="btn primary" id="pr-allow">Allow</button>
+  </div>
+</div>
 
-  <script src="renderer.js"></script>
+<script src="renderer.js"></script>
 </body>
 </html>
