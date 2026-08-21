@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';" />
+  <title>minimaDesk</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Phase-0 boot shell. The party-dress hub (tabs + launcher) replaces this in Phase 1. -->
+  <header id="bar">
+    <div class="brand">minima<span>Desk</span></div>
+    <div id="status" class="status">
+      <span class="dot" id="dot"></span>
+      <span id="statustext">starting node…</span>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="stats">
+      <div class="stat"><div class="k">Block</div><div class="v" id="block">—</div></div>
+      <div class="stat"><div class="k">Connections</div><div class="v" id="conns">—</div></div>
+      <div class="stat"><div class="k">Maxima (9001-style)</div><div class="v" id="maxima">—</div></div>
+      <div class="stat"><div class="k">Node</div><div class="v" id="ver">—</div></div>
+    </section>
+
+    <section class="dapps">
+      <h2>Installed MiniDapps <button id="refresh" class="ghost">refresh</button></h2>
+      <div id="dapplist" class="grid"><div class="muted">waiting for MDS…</div></div>
+    </section>
+  </main>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

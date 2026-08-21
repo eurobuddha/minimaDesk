@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>minimaDesk — Shell</title>
+<style>
+/* ============================================================
+   minimaDesk — shell chrome mockup
+   COLOUR + TYPE: official Minima Website 2024 tokens.
+     ground Core Black #08090B · surfaces Contrast Black 1/2
+     body Grey-60% #BDBDC4 + white · labels Core Grey #91919D
+     accents SPARINGLY — Core Orange (identity + node signal + CTA)
+     Core Blue (links / selection / focus)
+   SHAPE + RESTRAINT: Parlons DNA — 10px buttons, 14px cards,
+     999 pills, hand-drawn vector icons (no glyph fonts).
+   THE ONE RISK: "the block seam" — a single Core-Orange hairline
+     that lives under the active tab and pulses on each new block;
+     the hero block height is the Statistic-40 centrepiece.
+   ============================================================ */
+
+:root{
+  /* -------- Minima 2024 core -------- */
+  --black:    #08090B;   /* Core Black — ground            */
+  --c1:       #17191C;   /* Contrast Black 1 — cards       */
+  --c2:       #282B2E;   /* Contrast Black 2 — elevated    */
+  --c-line:   #232629;   /* hairline (between c1/c2)       */
+
+  --white:    #FFFFFF;
+  --grey60:   #BDBDC4;   /* predominant body copy on dark  */
+  --grey:     #91919D;   /* Core Grey — labels / muted     */
+  --grey-dim: #6C6C77;   /* tertiary / hints               */
+
+  --orange:   #FF512F;   /* Core Orange — identity accent  */
+  --orange-hi:#FE3918;   /* rollover                       */
+  --orange-2: rgba(255,81,47,.14);
+  --orange-glow: rgba(255,81,47,.42);
+
+  --blue:     #317AFF;   /* Core Blue — links / selection  */
+  --blue-hi:  #0D55D9;
+  --blue-2:   rgba(49,122,255,.14);
+
+  --warn:     #FF9682;   /* Orange 60% — soft caution      */
+
+  /* surface tokens resolve light/dark */
+  --ground:   var(--black);
+  --card:     var(--c1);
+  --raise:    var(--c2);
+  --line:     var(--c-line);
+  --ink:      var(--white);
+  --body:     var(--grey60);
+  --label:    var(--grey);
+  --faint:    var(--grey-dim);
+  --chrome:   #0C0D10;
+  --field:    #101215;
+
+  --shadow:   0 1px 2px rgba(0,0,0,.5), 0 12px 34px rgba(0,0,0,.5);
+  --shadow-lg:0 34px 100px rgba(0,0,0,.66);
+
+  --r-card:14px; --r-btn:10px; --r-field:12px; --r-tab:11px; --r-pill:999px;
+  --sans:"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+
+/* -------- Light mode (secondary): Grey-10 / white grounds -------- */
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --ground:#F4F4F5; --card:#FFFFFF; --raise:#FFFFFF; --line:#E7E7EA;
+    --ink:#08090B; --body:#3E3F47; --label:#75757F; --faint:#A3A3AC;
+    --chrome:#101216; --field:#F4F4F5;
+    --orange-2:rgba(255,81,47,.12); --blue-2:rgba(49,122,255,.10);
+    --shadow:0 1px 2px rgba(8,9,11,.06), 0 12px 34px rgba(8,9,11,.10);
+    --shadow-lg:0 34px 90px rgba(8,9,11,.20);
+  }
+}
+:root[data-theme="light"]{
+  --ground:#F4F4F5;--card:#FFFFFF;--raise:#FFFFFF;--line:#E7E7EA;
+  --ink:#08090B;--body:#3E3F47;--label:#75757F;--faint:#A3A3AC;
+  --chrome:#101216;--field:#F4F4F5;
+  --orange-2:rgba(255,81,47,.12);--blue-2:rgba(49,122,255,.10);
+  --shadow:0 1px 2px rgba(8,9,11,.06),0 12px 34px rgba(8,9,11,.10);
+  --shadow-lg:0 34px 90px rgba(8,9,11,.20);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+::selection{background:var(--blue);color:#fff}
+body{
+  font-family:var(--sans);font-weight:500;
+  background:
+    radial-gradient(1100px 520px at 50% -8%, var(--orange-2), transparent 62%),
+    var(--ground);
+  color:var(--body);
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  padding:34px 20px 60px;
+  display:flex;flex-direction:column;align-items:center;gap:24px;min-height:100vh;
+}
+.mono{font-family:var(--mono);font-feature-settings:"tnum" 1;letter-spacing:-.01em}
+a,.link{color:var(--blue);text-decoration:none}
+a:hover{color:var(--blue-hi)}
+
+/* ============ mockup meta bar (not part of the product) ============ */
+.meta{width:100%;max-width:1180px;display:flex;align-items:center;
+  justify-content:space-between;gap:16px}
+.meta .brand{display:flex;align-items:center;gap:12px}
+.mmark{width:28px;height:28px;flex:0 0 auto}
+.meta .brand b{font-weight:800;letter-spacing:-.02em;font-size:16px;color:var(--ink)}
+.meta .brand span{color:var(--label);font-size:13px;font-weight:600}
+.toggle{border:1px solid var(--line);background:var(--card);color:var(--label);
+  border-radius:var(--r-pill);padding:8px 14px;font:700 12px/1 var(--sans);cursor:pointer;
+  display:flex;align-items:center;gap:7px}
+.toggle:hover{color:var(--ink)}
+
+/* ============================ THE WINDOW ============================ */
+.window{width:100%;max-width:1180px;background:var(--card);border-radius:16px;
+  border:1px solid var(--line);box-shadow:var(--shadow-lg);overflow:hidden}
+
+/* ---- title bar + tab strip (always dark chrome) ---- */
+.chrome{background:var(--chrome);padding:0 12px 0 14px;display:flex;align-items:flex-end;
+  height:52px;position:relative}
+.lights{display:flex;gap:8px;align-items:center;height:52px;padding-right:8px}
+.lights i{width:12px;height:12px;border-radius:50%;display:block}
+.lights .r{background:#EC6A5E}.lights .y{background:#F4BE4F}.lights .g{background:#61C554}
+
+.tabs{display:flex;align-items:flex-end;gap:3px;height:52px;flex:0 0 auto}
+.tab{height:38px;align-self:flex-end;display:flex;align-items:center;gap:9px;
+  padding:0 11px;max-width:198px;min-width:134px;border-radius:var(--r-tab) var(--r-tab) 0 0;
+  color:rgba(255,255,255,.52);font-weight:600;font-size:13px;letter-spacing:-.01em;
+  cursor:default;position:relative;background:transparent}
+.tab:hover{background:rgba(255,255,255,.05);color:rgba(255,255,255,.86)}
+.tab .fav{width:17px;height:17px;border-radius:5px;flex:0 0 auto;display:grid;place-items:center;
+  font-size:9.5px;font-weight:800;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.tab .ttl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab .x{margin-left:auto;width:16px;height:16px;border-radius:5px;flex:0 0 auto;display:grid;
+  place-items:center;opacity:0;color:currentColor}
+.tab:hover .x{opacity:.7}
+.tab .x:hover{background:rgba(255,255,255,.16);opacity:1}
+.tab.active{background:var(--card);color:var(--ink)}
+.tab.active .x{opacity:.55}
+/* THE BLOCK SEAM — a Core-Orange hairline under the active tab, breathing per block */
+.tab.active::after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2px;
+  border-radius:2px;background:linear-gradient(90deg,transparent,var(--orange),transparent);
+  box-shadow:0 0 12px var(--orange-glow);animation:seam 5.5s ease-in-out infinite}
+@keyframes seam{0%,100%{opacity:.5}50%{opacity:1}}
+
+.newtab{align-self:center;margin-left:6px;width:30px;height:30px;border-radius:9px;display:grid;
+  place-items:center;color:rgba(255,255,255,.5);cursor:pointer}
+.newtab:hover{background:rgba(255,255,255,.09);color:#fff}
+
+.chrome .spacer{flex:1 1 auto}
+.nodechip{align-self:center;display:flex;align-items:center;gap:9px;height:30px;padding:0 12px 0 11px;
+  border-radius:var(--r-pill);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);
+  cursor:pointer;color:#fff}
+.nodechip:hover{background:rgba(255,255,255,.1)}
+.pulse{position:relative;width:9px;height:9px}
+.pulse i{position:absolute;inset:0;border-radius:50%;background:var(--orange)}
+.pulse::before{content:"";position:absolute;inset:-3px;border-radius:50%;border:1.5px solid var(--orange);
+  opacity:.6;animation:ping 2.4s cubic-bezier(0,0,.2,1) infinite}
+@keyframes ping{0%{transform:scale(.55);opacity:.75}80%,100%{transform:scale(1.95);opacity:0}}
+.nodechip .h{font:700 12px/1 var(--mono);color:#fff}
+.nodechip .lbl{font-size:10.5px;font-weight:800;letter-spacing:.05em;color:rgba(255,255,255,.62);
+  text-transform:uppercase}
+.win-ctl{display:flex;gap:4px;align-self:center;margin-left:8px}
+.win-ctl i{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;
+  color:rgba(255,255,255,.5);cursor:pointer}
+.win-ctl i:hover{background:rgba(255,255,255,.09);color:#fff}
+
+/* ============================ CONTENT: THE LAUNCHER ============================ */
+.view{padding:34px 40px 40px;background:var(--card);position:relative}
+.view::before{content:"";position:absolute;top:0;left:0;right:0;height:190px;pointer-events:none;
+  background:radial-gradient(720px 190px at 20% -50px, var(--orange-2), transparent 70%)}
+
+.hero{position:relative;display:flex;align-items:center;justify-content:space-between;gap:22px;
+  margin-bottom:28px}
+.hero .lede .eyebrow{font-size:12px;font-weight:800;letter-spacing:.02em;color:var(--orange);
+  margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.hero h1{margin:0;font-size:32px;font-weight:800;letter-spacing:-.03em;line-height:1.2;color:var(--ink)}
+.hero h1 .dim{color:var(--body);font-weight:600}
+.hero .sub{margin-top:9px;color:var(--body);font-size:14px;font-weight:500;line-height:1.4}
+.hero .sub b{color:var(--ink);font-weight:700}
+/* the Statistic-40 block figure — hero centrepiece */
+.stat{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:0 0 auto}
+.stat .lab{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--label)}
+.stat .fig{font:800 40px/1.2 var(--mono);letter-spacing:-.03em;color:var(--ink);display:flex;
+  align-items:center;gap:11px}
+.stat .fig .pulse{width:11px;height:11px}
+.stat .fig .pulse i,.stat .fig .pulse::before{}
+
+/* install action */
+.install{position:relative;margin-bottom:30px;
+  border:1.5px dashed color-mix(in srgb,var(--orange) 42%, var(--line));
+  border-radius:var(--r-card);background:linear-gradient(0deg,var(--orange-2),transparent);
+  padding:20px 22px;display:flex;align-items:center;gap:18px}
+.install .zicon{width:46px;height:46px;border-radius:12px;flex:0 0 auto;display:grid;place-items:center;
+  background:var(--raise);border:1px solid var(--line);color:var(--orange)}
+.install .ztxt{flex:1 1 auto}
+.install .ztxt b{font-size:16px;font-weight:800;letter-spacing:-.01em;color:var(--ink)}
+.install .ztxt p{margin:4px 0 0;color:var(--body);font-size:14px;font-weight:500;line-height:1.4}
+.install .ztxt code{font-family:var(--mono);font-size:12px;background:var(--raise);padding:1px 6px;
+  border-radius:6px;color:var(--ink)}
+.btn{border:0;cursor:pointer;font-family:var(--sans);font-weight:800;letter-spacing:-.01em;
+  border-radius:var(--r-btn);height:42px;padding:0 18px;font-size:14px;display:inline-flex;
+  align-items:center;gap:8px}
+.btn.primary{background:var(--orange);color:#fff}
+.btn.primary:hover{background:var(--orange-hi)}
+.btn.ghost{background:var(--raise);color:var(--ink);border:1px solid var(--line)}
+.btn.ghost:hover{border-color:var(--faint)}
+
+/* section header */
+.sec{display:flex;align-items:center;justify-content:space-between;margin:0 2px 14px}
+.sec .lt{display:flex;align-items:baseline;gap:9px}
+.sec h2{margin:0;font-size:18px;font-weight:800;letter-spacing:-.01em;color:var(--ink)}
+.sec .count{font:700 12px/1 var(--mono);color:var(--label);background:var(--raise);
+  border:1px solid var(--line);border-radius:var(--r-pill);padding:5px 9px}
+.sec .sort{color:var(--label);font-size:13px;font-weight:700;cursor:pointer;display:flex;
+  align-items:center;gap:6px}
+.sec .sort:hover{color:var(--ink)}
+.search{display:flex;align-items:center;gap:9px;height:40px;padding:0 14px;background:var(--field);
+  border:1px solid var(--line);border-radius:var(--r-field);width:262px;color:var(--faint);font-size:14px}
+.search:focus-within{border-color:var(--blue)}
+.search input{border:0;background:transparent;outline:0;color:var(--ink);font:500 14px var(--sans);width:100%}
+.search input::placeholder{color:var(--faint)}
+
+/* grid of installed MiniDapps */
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.tile{position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--r-card);
+  padding:16px 16px 14px;overflow:hidden;cursor:pointer;
+  transition:border-color .16s ease, transform .16s ease, box-shadow .16s ease}
+.tile:hover{border-color:color-mix(in srgb,var(--orange) 45%,var(--line));transform:translateY(-2px);
+  box-shadow:var(--shadow)}
+.tile .top{display:flex;align-items:flex-start;justify-content:space-between}
+.tile .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-weight:800;
+  font-size:16px;color:#fff;letter-spacing:-.02em;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.14), 0 4px 12px rgba(0,0,0,.24)}
+.tile .run{width:7px;height:7px;border-radius:50%;background:var(--orange);
+  box-shadow:0 0 0 3px var(--orange-2);margin-top:6px}
+.tile .nm{margin-top:13px;font-size:16px;font-weight:800;letter-spacing:-.01em;color:var(--ink)}
+.tile .cat{margin-top:3px;color:var(--label);font-size:12px;font-weight:600}
+.tile .foot{margin-top:12px;display:flex;align-items:center;justify-content:space-between}
+.tile .ver{font:600 11px/1 var(--mono);color:var(--faint)}
+.tile .perm{display:flex;gap:4px}
+.tile .perm span{font-size:9px;font-weight:800;letter-spacing:.05em;color:var(--label);
+  border:1px solid var(--line);border-radius:5px;padding:2px 5px}
+.tile .acts{position:absolute;left:0;right:0;bottom:0;height:38px;padding:0 14px;display:flex;
+  align-items:center;gap:6px;justify-content:flex-end;
+  background:linear-gradient(0deg,var(--card) 62%, transparent);
+  transform:translateY(100%);transition:transform .16s ease}
+.tile:hover .acts{transform:translateY(0)}
+.tile .acts button{border:1px solid var(--line);background:var(--raise);color:var(--ink);border-radius:8px;
+  height:26px;padding:0 11px;font:800 12px var(--sans);cursor:pointer}
+.tile .acts button:hover{border-color:var(--faint)}
+.tile .acts button.rm{color:var(--orange);border-color:transparent;background:transparent}
+.tile .acts button.rm:hover{background:var(--orange-2)}
+
+/* ============================ NODE STATUS + PERMISSION ============================ */
+.overlay{position:relative;margin-top:30px;display:flex;gap:16px;flex-wrap:wrap}
+.pop{width:344px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-card);
+  box-shadow:var(--shadow);overflow:hidden}
+.pop .head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;
+  justify-content:space-between}
+.pop .head b{font-size:14px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--ink)}
+.statuspill{display:flex;align-items:center;gap:7px;font:800 10.5px var(--sans);letter-spacing:.04em;
+  text-transform:uppercase;color:var(--orange);background:var(--orange-2);border-radius:var(--r-pill);
+  padding:5px 10px}
+.pop .body{padding:6px 16px 14px}
+.kv{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line)}
+.kv:last-child{border-bottom:0}
+.kv .k{color:var(--label);font-size:13px;font-weight:600}
+.kv .v{font:600 13px var(--mono);color:var(--ink)}
+.kv .v.ok{color:var(--orange)}
+.addr-lbl{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);
+  margin-top:12px}
+.addr{margin:8px 0 2px;background:var(--field);border:1px solid var(--line);border-radius:10px;padding:9px 10px;
+  display:flex;align-items:center;gap:8px}
+.addr code{flex:1 1 auto;font-family:var(--mono);font-size:11px;color:var(--ink);overflow-x:auto;
+  white-space:nowrap;letter-spacing:0}
+.addr code::-webkit-scrollbar{height:5px}
+.addr code::-webkit-scrollbar-thumb{background:var(--faint);border-radius:3px}
+.addr .cp{flex:0 0 auto;width:26px;height:26px;border-radius:7px;display:grid;place-items:center;
+  color:var(--label);cursor:pointer;border:1px solid var(--line);background:var(--card)}
+.addr .cp:hover{color:var(--blue);border-color:var(--blue)}
+
+.prompt{width:360px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-card);
+  box-shadow:var(--shadow);padding:18px 18px 16px}
+.prompt .ph{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.prompt .ph .ic{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-weight:800;
+  color:#fff;font-size:14px}
+.prompt .ph b{font-size:16px;font-weight:800;display:block;color:var(--ink)}
+.prompt .ph span{font-size:12px;color:var(--label);font-weight:600}
+.prompt .ph span em{color:var(--warn);font-style:normal;font-weight:800}
+.prompt .ask{font-size:14px;color:var(--ink);font-weight:600;margin:0 0 12px;line-height:1.45}
+.prompt .ask b{color:var(--orange)}
+.perms{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.perms .row{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink);font-weight:600}
+.perms .row .g{width:22px;height:22px;border-radius:7px;background:var(--raise);border:1px solid var(--line);
+  display:grid;place-items:center;color:var(--orange);flex:0 0 auto}
+.perms .row small{color:var(--label);font-weight:600;margin-left:auto;font-size:11px;text-transform:uppercase;
+  letter-spacing:.04em}
+.prompt .btns{display:flex;gap:10px}
+.prompt .btns .btn{flex:1;justify-content:center}
+
+.legend{width:100%;max-width:1180px;color:var(--faint);font-size:12px;text-align:center;font-weight:600}
+.legend b{color:var(--label)}
+svg{display:block}
+</style>
+</head>
+<body>
+
+<!-- ===== mockup meta bar (not part of the product) ===== -->
+<div class="meta">
+  <div class="brand">
+    <!-- Minima logo mark — stylised cascading M -->
+    <svg class="mmark" viewBox="0 0 32 32" fill="none">
+      <path d="M4 25V10l6 8 6-8 6 8 6-8v15" stroke="var(--orange)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <b>minimaDesk</b><span>shell chrome — launch design direction</span>
+  </div>
+  <button class="toggle" onclick="tog()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    <span id="tgl">Toggle theme</span>
+  </button>
+</div>
+
+<!-- ============================ THE WINDOW ============================ -->
+<div class="window">
+
+  <!-- ---- title bar + tab strip ---- -->
+  <div class="chrome">
+    <div class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+
+    <div class="tabs">
+      <div class="tab active">
+        <span class="fav" style="background:linear-gradient(150deg,#2c2f34,#1a1c20)">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-6 8 6"/><path d="M6 10v9h12v-9"/></svg>
+        </span>
+        <span class="ttl">Home</span>
+        <span class="x"><svg width="10" height="10" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></span>
+      </div>
+      <div class="tab">
+        <span class="fav" style="background:linear-gradient(150deg,#ff6a4a,#e2401f)">W</span>
+        <span class="ttl">Wallet</span>
+        <span class="x"><svg width="10" height="10" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></span>
+      </div>
+      <div class="tab">
+        <span class="fav" style="background:linear-gradient(150deg,#4d86ff,#255fd6)">◈</span>
+        <span class="ttl">Dolphin&nbsp;DEX</span>
+        <span class="x"><svg width="10" height="10" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></span>
+      </div>
+      <div class="tab">
+        <span class="fav" style="background:linear-gradient(150deg,#6b6f78,#3f4249)">E</span>
+        <span class="ttl">Ember&nbsp;Chat</span>
+        <span class="x"><svg width="10" height="10" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></span>
+      </div>
+      <div class="newtab" title="Open launcher">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </div>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="nodechip" title="Node status">
+      <span class="pulse"><i></i></span>
+      <span class="lbl">Synced</span>
+      <span class="h">512,847</span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="opacity:.5"><path d="M6 9l6 6 6-6"/></svg>
+    </div>
+
+    <div class="win-ctl">
+      <i><svg width="12" height="12" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg></i>
+      <i><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></i>
+      <i><svg width="11" height="11" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></i>
+    </div>
+  </div>
+
+  <!-- ============================ LAUNCHER / HOME ============================ -->
+  <div class="view">
+
+    <div class="hero">
+      <div class="lede">
+        <div class="eyebrow">
+          <svg width="14" height="14" viewBox="0 0 32 32" fill="none"><path d="M4 25V10l6 8 6-8 6 8 6-8v15" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Node online · Maxima on :9001
+        </div>
+        <h1>Good evening. <span class="dim">Your node is synced.</span></h1>
+        <div class="sub"><b>23</b> peers connected · <b>10</b> MiniDapps installed · Maxima ready</div>
+      </div>
+      <div class="stat">
+        <div class="lab">Chain height</div>
+        <div class="fig"><span class="pulse"><i></i></span>512,847</div>
+      </div>
+    </div>
+
+    <!-- install action -->
+    <div class="install">
+      <div class="zicon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      </div>
+      <div class="ztxt">
+        <b>Install a MiniDapp</b>
+        <p>Drop a <code>.mds.zip</code> here, or browse. It opens in a new tab once you approve its permissions.</p>
+      </div>
+      <button class="btn ghost">Browse files</button>
+      <button class="btn primary">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Install
+      </button>
+    </div>
+
+    <!-- installed section -->
+    <div class="sec">
+      <div class="lt"><h2>Installed</h2><span class="count">10</span></div>
+      <div class="search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+        <input placeholder="Search MiniDapps…" spellcheck="false">
+      </div>
+    </div>
+
+    <div class="grid" id="grid"></div>
+
+    <!-- node status popover + permission prompt -->
+    <div class="overlay">
+      <div class="pop">
+        <div class="head">
+          <b>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.4"/><circle cx="5" cy="6" r="1.8"/><circle cx="19" cy="6" r="1.8"/><circle cx="5" cy="18" r="1.8"/><circle cx="19" cy="18" r="1.8"/><path d="M6.6 7.1l3.8 3.4M17.4 7.1l-3.8 3.4M6.6 16.9l3.8-3.4M17.4 16.9l-3.8-3.4"/></svg>
+            Node status
+          </b>
+          <span class="statuspill"><span class="pulse" style="transform:scale(.8)"><i></i></span>Synced</span>
+        </div>
+        <div class="body">
+          <div class="kv"><span class="k">Chain height</span><span class="v ok">512,847</span></div>
+          <div class="kv"><span class="k">Connections</span><span class="v">14 in · 9 out</span></div>
+          <div class="kv"><span class="k">Maxima</span><span class="v ok">:9001 online</span></div>
+          <div class="kv"><span class="k">RPC</span><span class="v">:9005 local</span></div>
+          <div class="kv"><span class="k">Uptime</span><span class="v">6d 14h 22m</span></div>
+          <div class="kv"><span class="k">Node version</span><span class="v">1.6.9</span></div>
+
+          <div class="addr-lbl">Your Maxima contact address</div>
+          <div class="addr">
+            <code>MxG08YR7T2WQ3H9K4NB6JVCE1ZPD5FLA0X2MU9QW7SR3T6YB1KN8DHVCE4ZJ0PMxG08@31.15.24.108:9001</code>
+            <span class="cp" title="Copy full address">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="prompt">
+        <div class="ph">
+          <div class="ic" style="background:linear-gradient(150deg,#4d86ff,#255fd6)">◈</div>
+          <div>
+            <b>Dolphin DEX</b>
+            <span>v2.3.1 · <em>unverified publisher</em></span>
+          </div>
+        </div>
+        <p class="ask">Dolphin DEX wants permission to <b>read and write</b> on your node.</p>
+        <div class="perms">
+          <div class="row">
+            <span class="g"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></span>
+            Read balance &amp; coins <small>view</small>
+          </div>
+          <div class="row">
+            <span class="g"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3l7 7-11 11H3v-7z"/></svg></span>
+            Build &amp; post transactions <small>write</small>
+          </div>
+          <div class="row">
+            <span class="g"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span>
+            Private SQL database <small>write</small>
+          </div>
+        </div>
+        <div class="btns">
+          <button class="btn ghost">Deny</button>
+          <button class="btn primary">Allow</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  <b>minimaDesk</b> — installed MiniDapps open as tabs · Core Orange lives only on the block seam, the sync pulse &amp; the single primary action · Core Blue is reserved for links &amp; selection
+</div>
+
+<script>
+const dapps=[
+  {mono:"W",  hue:"#ff6a4a,#e2401f", name:"Wallet",         cat:"Payments",     ver:"1.7.0", perms:["R","W"], run:true},
+  {mono:"◈",  hue:"#4d86ff,#255fd6", name:"Dolphin DEX",    cat:"Trading",      ver:"2.3.1", perms:["R","W"], run:true},
+  {mono:"E",  hue:"#6b6f78,#3f4249", name:"Ember Chat",     cat:"Messaging",    ver:"0.9.4", perms:["R","W"], run:true},
+  {mono:"◱",  hue:"#5a6470,#3a4350", name:"Block Explorer", cat:"Utilities",    ver:"1.2.0", perms:["R"],     run:false},
+  {mono:"S",  hue:"#ff8a52,#e2541f", name:"Stake",          cat:"Node",         ver:"1.0.6", perms:["R","W"], run:false},
+  {mono:"D",  hue:"#707480,#454952", name:"Docs Vault",     cat:"Storage",      ver:"0.7.2", perms:["W"],     run:false},
+  {mono:"◐",  hue:"#5a94ff,#2f6ae0", name:"Health",         cat:"Node",         ver:"1.1.3", perms:["R"],     run:false},
+  {mono:"⌘",  hue:"#63666e,#3c3f46", name:"Terminal",       cat:"Developer",    ver:"1.4.1", perms:["R","W"], run:false},
+];
+document.getElementById('grid').innerHTML = dapps.map(d=>`
+  <div class="tile">
+    <div class="top">
+      <div class="ic" style="background:linear-gradient(150deg,${d.hue})">${d.mono}</div>
+      ${d.run?'<span class="run" title="Open in a tab"></span>':''}
+    </div>
+    <div class="nm">${d.name}</div>
+    <div class="cat">${d.cat}</div>
+    <div class="foot">
+      <span class="ver">v${d.ver}</span>
+      <span class="perm">${d.perms.map(p=>`<span>${p}</span>`).join('')}</span>
+    </div>
+    <div class="acts">
+      <button class="rm">Uninstall</button>
+      <button>Open</button>
+    </div>
+  </div>`).join('');
+
+function tog(){
+  const r=document.documentElement;
+  const cur=r.getAttribute('data-theme');
+  const dark = cur ? cur==='dark' : !matchMedia('(prefers-color-scheme: light)').matches;
+  r.setAttribute('data-theme', dark?'light':'dark');
+  document.getElementById('tgl').textContent = dark?'Light':'Dark';
+}
+</script>
+</body>
+</html>
