@@ -1,6 +1,10 @@
 /* minimaDesk hub — tabs + live MDS launcher + webview dapp tabs + node status. */
+const D = (m) => { try { (window.minima && window.minima.diag) ? window.minima.diag(m) : (document.title = "DIAG:" + m); } catch (e) {} };
+window.addEventListener("error", (e) => D("err: " + e.message + " @" + (e.filename || "").split("/").pop() + ":" + e.lineno));
+window.addEventListener("unhandledrejection", (e) => D("reject: " + (e.reason && (e.reason.message || e.reason))));
 const $ = (id) => document.getElementById(id);
 const api = window.minima;
+D("boot: api=" + (api ? "present" : "MISSING"));
 
 let PORTS = { base: 0, rpc: 0, mds: 0 };
 let DAPPS = [];                 // from mds action:list
@@ -47,7 +51,11 @@ function renderTabs() {
 function switchTab(id) {
   ACTIVE = id;
   const t = TABS.find(x => x.id === id);
-  $("home").classList.toggle("hidden", !(t && t.kind === "home"));
+  const isHome = !!(t && t.kind === "home");
+  $("home").classList.toggle("hidden", !isHome);
+  // The webview layer covers the whole stage — hide it entirely on Home, or it
+  // eats every click/scroll meant for the launcher underneath.
+  $("webviews").style.display = isHome ? "none" : "block";
   document.querySelectorAll(".webviews webview").forEach(wv => {
     wv.classList.toggle("hidden", !(t && t.kind === "dapp" && wv.dataset.tab === id));
   });
@@ -225,6 +233,7 @@ api.onStatus((s) => applyStatus(s));
 
 (async function init() {
   renderTabs();
+  switchTab("home");                    // set correct initial layer visibility
   PORTS = await api.ports();
   applyStatus(await api.snapshot());
   let tries = 0;

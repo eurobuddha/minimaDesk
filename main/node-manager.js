@@ -55,7 +55,9 @@ class NodeManager extends EventEmitter {
     const cfg = config.load();
     const dataDir = cfg.dataFolder || config.defaultDataFolder();
     fs.mkdirSync(dataDir, { recursive: true });
-    const args = ["-jar", this.jarPath(),
+    // Cap the JVM heap — a fresh node running the default MDS services can otherwise
+    // balloon RAM and jank the whole machine (JVM flags must precede -jar).
+    const args = ["-Xmx1500m", "-Xms256m", "-jar", this.jarPath(),
       "-data", dataDir,
       "-basefolder", dataDir,
       "-port", String(config.basePort()),

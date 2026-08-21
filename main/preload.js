@@ -19,5 +19,8 @@ contextBridge.exposeInMainWorld("minima", {
   mdsBase: () => ipcRenderer.invoke("mds:base"),
 
   // pick a .mds.zip and install it (opens the native file dialog in main)
-  install: () => ipcRenderer.invoke("mds:install")
+  install: () => ipcRenderer.invoke("mds:install"),
+
+  // dev diagnostic channel (reliable — bypasses console-message forwarding)
+  diag: (m) => ipcRenderer.send("diag", String(m))
 });

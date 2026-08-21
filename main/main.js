@@ -34,10 +34,31 @@ function createWindow() {
   });
   win.loadFile(path.join(__dirname, "..", "renderer", "index.html"));
 
-  // Push node status/logs to the renderer.
+  // Dev diagnostics: forward renderer console to the terminal (Electron 33 passes an event object).
+  if (!app.isPackaged) {
+    win.webContents.on("console-message", (e) => {
+      const m = (e && (e.message !== undefined ? e.message : arguments[2]));
+      if (m !== undefined) console.log("[renderer]", m);
+    });
+    win.webContents.on("did-fail-load", (_e, code, desc, url) => console.log("[did-fail-load]", code, desc, url));
+    win.webContents.on("did-finish-load", () => console.log("[did-finish-load] renderer loaded"));
+    win.webContents.on("preload-error", (_e, p, err) => console.log("[preload-error]", p, err && err.message));
+    win.webContents.on("render-process-gone", (_e, d) => console.log("[render-gone]", d && d.reason));
+    if (process.env.MDESK_SHOT) {
+      setTimeout(() => {
+        win.webContents.capturePage().then(img => {
+          try { require("fs").writeFileSync(process.env.MDESK_SHOT, img.toPNG()); console.log("[shot] saved"); }
+          catch (e) { console.log("[shot] fail", e.message); }
+        });
+      }, 12000);
+    }
+  }
+
+  // Push ONLY status to the renderer (low frequency). Node logs are NOT streamed —
+  // Minima is extremely chatty and an IPC message per line froze the UI. The
+  // renderer pulls the ring buffer via `node:logs` on demand instead.
   const send = (ch, payload) => { if (win && !win.isDestroyed()) win.webContents.send(ch, payload); };
   node.on("status", s => send("node:status", s));
-  node.on("log", () => send("node:log", node.logs[node.logs.length - 1] || ""));
 }
 
 // Trust ONLY the node's own loopback MDS cert (self-signed). Everything else stays strict.
@@ -63,6 +84,7 @@ app.whenReady().then(() => {
 });
 
 // ---- IPC proxy: renderer → node (auth injected here) ----
+ipcMain.on("diag", (_e, m) => { if (!app.isPackaged) console.log("[R]", m); });
 ipcMain.handle("node:snapshot", () => node.snapshot());
 ipcMain.handle("node:logs", () => node.logs.slice(-300));
 ipcMain.handle("node:ports", () => ({ base: config.basePort(), rpc: config.rpcPort(), mds: config.mdsPort() }));
