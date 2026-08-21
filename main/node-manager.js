@@ -19,6 +19,19 @@ const { rpcCall } = require("./rpc");
 const LOG_MAX_LINES = 800;
 const HEALTH_EVERY_MS = 8_000;
 
+// The user's always-on Maxima relay fleet (mirrors the phone app's RelayStore.DEFAULTS).
+// A stock classic node ADOPTS these as Maxima hosts once it connects to them, so inbound
+// Maxima is forwarded down the node's outbound connection — the fix for "can send, can't
+// receive" behind NAT. We connect on boot and pin one as a static MLS for a stable directory.
+const MAXIMA_RELAYS = [
+  "65.109.31.226:9501",   // eurobuddha - Helsinki, FI
+  "95.179.179.181:9501",  // sally      - Amsterdam, NL
+  "45.77.246.226:9501",   // maxima     - Singapore, SG
+  "78.141.237.9:9501",    // openproject- London, GB
+  "192.248.151.55:9501"   // megammr    - London, GB
+];
+const PREFERRED_MLS_RELAY = "65.109.31.226:9501";   // pin this one as static MLS when connected
+
 function tokenizeArgs(s) {
   if (!s || typeof s !== "string") return [];
   const out = []; const re = /"([^"]*)"|'([^']*)'|(\S+)/g; let m;
@@ -37,6 +50,7 @@ class NodeManager extends EventEmitter {
     this.healthTimer = null;
     this.startedTs = 0;
     this.adopted = false;        // true when we attached to a node a previous instance left running
+    this.maximaSetupDone = false;// true once we've wired the node to the relay fleet this run
   }
 
   jarPath() {
@@ -142,12 +156,37 @@ class NodeManager extends EventEmitter {
           maxima
         };
         if (this.state !== "running") this.setState("running"); else this.emit("status", this.snapshot());
+        // Once Maxima is up, wire the node to the relay fleet so inbound is forwarded (one-time).
+        if (maxima && !this.maximaSetupDone) { this.maximaSetupDone = true; this.setupMaximaRelays(); }
       } catch (e) { /* still booting — keep state */ }
     };
     poll();
     this.healthTimer = setInterval(poll, HEALTH_EVERY_MS);
   }
   stopHealth() { if (this.healthTimer) { clearInterval(this.healthTimer); this.healthTimer = null; } this.health = null; }
+
+  // Connect the node to the user's Maxima relay fleet and pin a stable static MLS, so inbound
+  // Maxima is reliably forwarded even behind NAT (fixes "can send, can't receive"). Runtime-only:
+  // uses the `connect` and `maxextra` commands — it never touches startup args or chain P2P.
+  async setupMaximaRelays() {
+    const rpc = (c) => rpcCall(config.rpcPort(), config.rpcSecret(), c);
+    try {
+      for (const r of MAXIMA_RELAYS) { try { await rpc("connect host:" + r); } catch (e) {} }
+      this.log("[app] connected to " + MAXIMA_RELAYS.length + " Maxima relays");
+      // give the relays a moment to attach as hosts, then pin a connected fleet relay as static MLS
+      await new Promise(res => setTimeout(res, 12_000));
+      const info = (await rpc("maxima action:info").catch(() => ({}))).response || {};
+      if (info.staticmls) return;                       // already pinned — leave it
+      const hosts = ((await rpc("maxima action:hosts").catch(() => ({}))).response || {}).hosts || [];
+      const isFleet = (h) => MAXIMA_RELAYS.includes(h.host);
+      const pref = hosts.find(h => h.host === PREFERRED_MLS_RELAY && h.connected);
+      const relay = pref || hosts.find(h => isFleet(h) && h.connected);
+      if (relay && relay.address && /^Mx.+@.+:\d+$/.test(relay.address)) {
+        await rpc('maxextra action:staticmls host:' + relay.address);
+        this.log("[app] pinned static MLS to fleet relay " + relay.host);
+      }
+    } catch (e) { this.log("[app] maxima relay setup: " + e.message); }
+  }
 
   setState(s) { this.state = s; this.emit("status", this.snapshot()); }
   snapshot() {
