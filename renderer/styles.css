@@ -187,3 +187,32 @@ svg{display:block}
 .prompt .ask{font-size:14px;color:var(--ink);font-weight:600;margin:0 0 16px;line-height:1.45}
 .prompt .ask b{color:var(--orange)}
 .prompt .btns{display:flex;gap:10px}.prompt .btns .btn{flex:1;justify-content:center}
+
+/* chrome tool buttons (terminal / logs) */
+.tool{align-self:center;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:rgba(255,255,255,.5);
+  cursor:pointer;-webkit-app-region:no-drag;margin-left:2px}
+.tool:hover{background:rgba(255,255,255,.09);color:#fff}
+
+/* native panels: logs + terminal */
+.native{position:absolute;inset:0;display:none;flex-direction:column;background:var(--ground)}
+.native .nbar{flex:0 0 auto;display:flex;align-items:center;gap:12px;height:46px;padding:0 18px;border-bottom:1px solid var(--line);
+  background:var(--card)}
+.native .nbar b{color:var(--ink);font-size:14px;font-weight:800}
+.native .nbar .grow{flex:1 1 auto}
+.native .nbar .hint{color:var(--label);font-size:12px}.native .nbar .hint code{font-family:var(--mono);color:var(--body);background:var(--field);padding:1px 5px;border-radius:5px}
+.btn.sm{height:30px;padding:0 12px;font-size:12px;border-radius:8px}
+.chk{display:flex;align-items:center;gap:6px;color:var(--label);font-size:12px;font-weight:700;cursor:pointer}
+.logs{flex:1 1 auto;margin:0;overflow:auto;padding:14px 18px;font-size:12px;line-height:1.5;color:var(--body);white-space:pre-wrap;word-break:break-word}
+.term{flex:1 1 auto;overflow:auto;padding:14px 18px;font-size:12.5px;line-height:1.55;color:var(--body)}
+.term .cmd{color:var(--ink);font-weight:700}.term .cmd::before{content:"› ";color:var(--orange)}
+.term .out{white-space:pre-wrap;word-break:break-word;color:var(--body);margin:2px 0 12px}
+.term .err{color:var(--orange)}
+.term-in{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:10px 18px;border-top:1px solid var(--line);background:var(--card)}
+.term-in .prompt-mark{color:var(--orange);font-weight:800;font-size:13px}
+.term-in input{flex:1 1 auto;border:0;background:transparent;outline:0;color:var(--ink);font-size:13px}
+.term-in input::placeholder{color:var(--faint)}
+
+/* dapp tile: trust (read/write) toggle */
+.tile .acts button.tw{color:var(--blue);border-color:transparent;background:transparent}
+.tile .acts button.tw:hover{background:var(--blue-2)}
+.tile .perm span.w{color:var(--orange);border-color:color-mix(in srgb,var(--orange) 40%,var(--line))}

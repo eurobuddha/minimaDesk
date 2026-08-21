@@ -51,15 +51,28 @@ function renderTabs() {
 function switchTab(id) {
   ACTIVE = id;
   const t = TABS.find(x => x.id === id);
-  const isHome = !!(t && t.kind === "home");
-  $("home").classList.toggle("hidden", !isHome);
-  // The webview layer covers the whole stage — hide it entirely on Home, or it
-  // eats every click/scroll meant for the launcher underneath.
-  $("webviews").style.display = isHome ? "none" : "block";
+  const kind = t ? t.kind : "home";
+  $("home").classList.toggle("hidden", kind !== "home");
+  // Each full-stage layer is shown for exactly its kind; the others are display:none
+  // so an empty/hidden layer can never sit on top and eat clicks/scroll.
+  $("webviews").style.display = kind === "dapp" ? "block" : "none";
+  $("logsview").style.display = kind === "logs" ? "flex" : "none";
+  $("termview").style.display = kind === "terminal" ? "flex" : "none";
   document.querySelectorAll(".webviews webview").forEach(wv => {
-    wv.classList.toggle("hidden", !(t && t.kind === "dapp" && wv.dataset.tab === id));
+    wv.classList.toggle("hidden", !(kind === "dapp" && wv.dataset.tab === id));
   });
+  if (kind === "logs") refreshLogs();
+  if (kind === "terminal") setTimeout(() => $("term-input").focus(), 30);
   renderTabs();
+}
+
+// open a first-party native tab (logs / terminal), reusing it if already open
+function openNative(kind) {
+  const id = kind;
+  if (!TABS.find(t => t.id === id)) {
+    TABS.push({ id, kind, name: kind === "logs" ? "Node logs" : "Terminal" });
+  }
+  switchTab(id);
 }
 
 // ---- open / close a dapp tab ----
@@ -100,8 +113,14 @@ async function loadDapps() {
     const nm = ((d.conf && d.conf.name) || "").toLowerCase();
     return !nm.startsWith("_"); // hide MiniHub-internal if present
   });
+  // Only re-render when the set/trust actually changed — re-rendering every poll
+  // would replace tiles mid-click.
+  const sig = DAPPS.map(d => d.uid + ":" + (d.trust || "")).join(",");
+  if (sig === DAPP_SIG) return;
+  DAPP_SIG = sig;
   renderGrid();
 }
+let DAPP_SIG = "";
 function permsOf(d) {
   const tr = (d.trust || d.permission || "").toLowerCase();
   if (tr === "write") return ["R", "W"];
@@ -131,14 +150,16 @@ function renderGrid() {
       <div class="cat">${esc(conf.description || "MiniDapp")}</div>
       <div class="foot">
         <span class="ver">${conf.version ? "v" + esc(conf.version) : ""}</span>
-        <span class="perm">${permsOf(d).map(p => `<span>${p}</span>`).join("")}</span>
+        <span class="perm">${permsOf(d).map(p => `<span class="${p === "W" ? "w" : ""}">${p}</span>`).join("")}</span>
       </div>
       <div class="acts">
         <button class="rm">Uninstall</button>
+        <button class="tw">${(d.trust || "read").toLowerCase() === "write" ? "Read-only" : "→ Write"}</button>
         <button class="op">Open</button>
       </div>`;
     el.querySelector(".op").addEventListener("click", (e) => { e.stopPropagation(); openDapp(d); });
     el.querySelector(".rm").addEventListener("click", (e) => { e.stopPropagation(); uninstall(d); });
+    el.querySelector(".tw").addEventListener("click", (e) => { e.stopPropagation(); toggleTrust(d); });
     el.addEventListener("click", () => openDapp(d));
     grid.appendChild(el);
   }
@@ -229,6 +250,52 @@ $("nodechip").addEventListener("click", () => { $("nodepop").hidden = !$("nodepo
 document.addEventListener("click", (e) => { if (!e.target.closest("#nodepop") && !e.target.closest("#nodechip")) $("nodepop").hidden = true; });
 $("pv-copy").addEventListener("click", async () => { if (MX_ADDR) { try { await navigator.clipboard.writeText(MX_ADDR); } catch (e) {} } });
 
+// ---- chrome tools → native tabs ----
+document.querySelectorAll(".tool").forEach(el => el.addEventListener("click", () => openNative(el.dataset.open)));
+
+// ---- Logs ----
+let LOGS_FOLLOW = true;
+$("logs-follow").addEventListener("change", (e) => { LOGS_FOLLOW = e.target.checked; });
+$("logs-clear").addEventListener("click", () => { $("logs-pre").textContent = ""; });
+async function refreshLogs() {
+  if (ACTIVE !== "logs") return;
+  const lines = await api.logs();
+  const pre = $("logs-pre");
+  pre.textContent = (lines || []).join("\n");
+  if (LOGS_FOLLOW) pre.scrollTop = pre.scrollHeight;
+}
+
+// ---- Terminal ----
+function termAppend(cmd, out, isErr) {
+  const box = $("term-out");
+  const c = document.createElement("div"); c.className = "cmd"; c.textContent = cmd; box.appendChild(c);
+  const o = document.createElement("div"); o.className = "out" + (isErr ? " err" : ""); o.textContent = out; box.appendChild(o);
+  box.scrollTop = box.scrollHeight;
+}
+const TERM_HIST = []; let TERM_IX = 0;
+$("term-input").addEventListener("keydown", async (e) => {
+  const inp = e.target;
+  if (e.key === "Enter") {
+    const cmd = inp.value.trim(); if (!cmd) return;
+    inp.value = ""; TERM_HIST.push(cmd); TERM_IX = TERM_HIST.length;
+    if (cmd === "clear") { $("term-out").innerHTML = ""; return; }
+    termAppend(cmd, "…running…");
+    const res = await api.cmd(cmd);
+    $("term-out").lastChild.remove();  // drop the "…running…"
+    const ok = res && res.status !== false;
+    termAppend(cmd, JSON.stringify(res && res.response !== undefined ? res.response : res, null, 2), !ok);
+  } else if (e.key === "ArrowUp") { if (TERM_IX > 0) { TERM_IX--; inp.value = TERM_HIST[TERM_IX] || ""; e.preventDefault(); } }
+  else if (e.key === "ArrowDown") { if (TERM_IX < TERM_HIST.length) { TERM_IX++; inp.value = TERM_HIST[TERM_IX] || ""; } }
+});
+
+// ---- change a dapp's trust to read/write ----
+async function toggleTrust(d) {
+  const cur = (d.trust || d.permission || "read").toLowerCase();
+  const next = cur === "write" ? "read" : "write";
+  await api.cmd("mds action:permission uid:" + d.uid + " trust:" + next);
+  await loadDapps();
+}
+
 api.onStatus((s) => applyStatus(s));
 
 (async function init() {
@@ -242,6 +309,7 @@ api.onStatus((s) => applyStatus(s));
     await loadDapps();
     await refreshMaximaAddr();
     await checkPending();
-    if (++tries > 200) clearInterval(iv);
+    refreshLogs();
+    if (++tries > 100000) clearInterval(iv);
   }, 4000);
 })();

@@ -16,6 +16,12 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
     </div>
     <div class="spacer"></div>
+    <div class="tool" id="opterminal" data-open="terminal" title="Terminal">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z" opacity=".0"/><path d="M6 8l4 4-4 4"/><path d="M12 16h6"/></svg>
+    </div>
+    <div class="tool" id="oplogs" data-open="logs" title="Node logs">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M8 10h8M8 14h8M8 18h5"/></svg>
+    </div>
     <div class="nodechip" id="nodechip" title="Node status">
       <span class="pulse" id="chippulse"><i></i></span>
       <span class="lbl" id="chiplbl">starting</span>
@@ -68,6 +74,26 @@
     </section>
 
     <div class="webviews" id="webviews"></div>
+
+    <!-- native first-party panels (logs + terminal), shown one at a time -->
+    <section class="native" id="logsview" hidden>
+      <div class="nbar"><b>Node logs</b><span class="grow"></span>
+        <button class="btn ghost sm" id="logs-clear">Clear</button>
+        <label class="chk"><input type="checkbox" id="logs-follow" checked> follow</label>
+      </div>
+      <pre class="logs mono" id="logs-pre"></pre>
+    </section>
+
+    <section class="native" id="termview" hidden>
+      <div class="nbar"><b>Terminal</b><span class="grow"></span>
+        <span class="hint">RPC to your node · try <code>status</code>, <code>balance</code>, <code>maxima action:info</code></span>
+      </div>
+      <div class="term mono" id="term-out"></div>
+      <div class="term-in">
+        <span class="prompt-mark mono">minima&nbsp;›</span>
+        <input id="term-input" class="mono" spellcheck="false" autocomplete="off" placeholder="type a command and press ⏎" />
+      </div>
+    </section>
   </div>
 
   <!-- node status popover -->
