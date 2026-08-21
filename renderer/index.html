@@ -1,35 +1,113 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';" />
-  <title>minimaDesk</title>
-  <link rel="stylesheet" href="styles.css" />
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; img-src 'self' data:;" />
+<title>minimaDesk</title>
+<link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- Phase-0 boot shell. The party-dress hub (tabs + launcher) replaces this in Phase 1. -->
-  <header id="bar">
-    <div class="brand">minima<span>Desk</span></div>
-    <div id="status" class="status">
-      <span class="dot" id="dot"></span>
-      <span id="statustext">starting node…</span>
+  <!-- ============ title bar + tab strip (dark chrome, drag region) ============ -->
+  <div class="chrome" id="chrome">
+    <div class="macgap"></div>                       <!-- room for native traffic lights on macOS -->
+    <div class="tabs" id="tabs"></div>
+    <div class="newtab" id="newtab" title="Open launcher">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
     </div>
-  </header>
+    <div class="spacer"></div>
+    <div class="nodechip" id="nodechip" title="Node status">
+      <span class="pulse" id="chippulse"><i></i></span>
+      <span class="lbl" id="chiplbl">starting</span>
+      <span class="h mono" id="chipblock">—</span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="opacity:.5"><path d="M6 9l6 6 6-6"/></svg>
+    </div>
+  </div>
 
-  <main id="main">
-    <section class="stats">
-      <div class="stat"><div class="k">Block</div><div class="v" id="block">—</div></div>
-      <div class="stat"><div class="k">Connections</div><div class="v" id="conns">—</div></div>
-      <div class="stat"><div class="k">Maxima (9001-style)</div><div class="v" id="maxima">—</div></div>
-      <div class="stat"><div class="k">Node</div><div class="v" id="ver">—</div></div>
+  <!-- ============ stage: the Home launcher + one webview per open dapp ============ -->
+  <div class="stage" id="stage">
+    <section class="view" id="home">
+      <div class="hero">
+        <div class="lede">
+          <div class="eyebrow">
+            <svg width="14" height="14" viewBox="0 0 32 32" fill="none"><path d="M4 25V10l6 8 6-8 6 8 6-8v15" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span id="eyebrow">Starting node…</span>
+          </div>
+          <h1 id="greeting">Welcome. <span class="dim">Bringing your node online.</span></h1>
+          <div class="sub" id="herosub">Booting the Minima node, MDS and Maxima…</div>
+        </div>
+        <div class="stat">
+          <div class="lab">Chain height</div>
+          <div class="fig mono"><span class="pulse" id="statpulse"><i></i></span><span id="statblock">—</span></div>
+        </div>
+      </div>
+
+      <div class="install" id="installcard">
+        <div class="zicon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        </div>
+        <div class="ztxt">
+          <b>Install a MiniDapp</b>
+          <p>Choose a <code>.mds.zip</code>. It opens in a new tab once you approve its permissions.</p>
+        </div>
+        <button class="btn primary" id="installbtn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          Install
+        </button>
+      </div>
+
+      <div class="sec">
+        <div class="lt"><h2>Installed</h2><span class="count mono" id="count">0</span></div>
+        <div class="search">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+          <input id="search" placeholder="Search MiniDapps…" spellcheck="false" />
+        </div>
+      </div>
+
+      <div class="grid" id="grid"><div class="empty" id="empty">Waiting for MDS…</div></div>
     </section>
 
-    <section class="dapps">
-      <h2>Installed MiniDapps <button id="refresh" class="ghost">refresh</button></h2>
-      <div id="dapplist" class="grid"><div class="muted">waiting for MDS…</div></div>
-    </section>
-  </main>
+    <div class="webviews" id="webviews"></div>
+  </div>
+
+  <!-- node status popover -->
+  <div class="pop" id="nodepop" hidden>
+    <div class="head">
+      <b>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.4"/><circle cx="5" cy="6" r="1.8"/><circle cx="19" cy="6" r="1.8"/><circle cx="5" cy="18" r="1.8"/><circle cx="19" cy="18" r="1.8"/><path d="M6.6 7.1l3.8 3.4M17.4 7.1l-3.8 3.4M6.6 16.9l3.8-3.4M17.4 16.9l-3.8-3.4"/></svg>
+        Node status
+      </b>
+      <span class="statuspill" id="popstatus"><span class="pulse" style="transform:scale(.8)"><i></i></span>—</span>
+    </div>
+    <div class="body">
+      <div class="kv"><span class="k">Chain height</span><span class="v ok mono" id="pv-block">—</span></div>
+      <div class="kv"><span class="k">Connections</span><span class="v mono" id="pv-conns">—</span></div>
+      <div class="kv"><span class="k">Maxima</span><span class="v mono" id="pv-maxima">—</span></div>
+      <div class="kv"><span class="k">Ports</span><span class="v mono" id="pv-ports">—</span></div>
+      <div class="kv"><span class="k">Node version</span><span class="v mono" id="pv-ver">—</span></div>
+      <div class="addr-lbl">Your Maxima contact address</div>
+      <div class="addr">
+        <code class="mono" id="pv-addr">—</code>
+        <span class="cp" id="pv-copy" title="Copy full address">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- permission prompt (shown when a dapp is pending) -->
+  <div class="scrim" id="scrim" hidden></div>
+  <div class="prompt" id="prompt" hidden>
+    <div class="ph">
+      <div class="ic" id="pr-ic">?</div>
+      <div><b id="pr-name">MiniDapp</b><span id="pr-meta"></span></div>
+    </div>
+    <p class="ask" id="pr-ask"></p>
+    <div class="btns">
+      <button class="btn ghost" id="pr-deny">Deny</button>
+      <button class="btn primary" id="pr-allow">Allow</button>
+    </div>
+  </div>
 
   <script src="renderer.js"></script>
 </body>

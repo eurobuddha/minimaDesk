@@ -5,7 +5,7 @@
  * The renderer NEVER sees the RPC/MDS secrets — it calls `mds:cmd` / `rpc:cmd` and main injects auth. MDS
  * MiniDapps are served by the node over HTTPS on the MDS port; we trust that one loopback self-signed cert.
  */
-const { app, BrowserWindow, ipcMain, session } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
 const config = require("./config");
 const node = require("./node-manager");
@@ -18,10 +18,13 @@ function createWindow() {
   win = new BrowserWindow({
     width: (cfg.window && cfg.window.w) || 1180,
     height: (cfg.window && cfg.window.h) || 780,
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: 940,
+    minHeight: 620,
     backgroundColor: "#08090B",          // Minima Core Black — no white flash on load
     title: "minimaDesk",
+    // mac: native traffic lights over our own dark chrome (the tab strip fills the top).
+    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+    trafficLightPosition: process.platform === "darwin" ? { x: 14, y: 18 } : undefined,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -71,8 +74,21 @@ ipcMain.handle("rpc:cmd", async (_e, command) => {
 });
 
 /** The MDS base URL a webview loads a dapp from: https://127.0.0.1:<mdsport>/<uid>/index.html?uid=<session>.
- *  The session UID is obtained in the renderer flow (Phase 1); here we just hand over host + port. */
+ *  The per-dapp uid+sessionid come from `mds action:list`; here we hand over host + port. */
 ipcMain.handle("mds:base", () => ({ host: "127.0.0.1", port: config.mdsPort() }));
+
+/** Pick a .mds.zip and install it (trust:read by default; user grants write via the permission prompt). */
+ipcMain.handle("mds:install", async () => {
+  const r = await dialog.showOpenDialog(win, {
+    title: "Install a MiniDapp",
+    properties: ["openFile"],
+    filters: [{ name: "MiniDapp", extensions: ["mds.zip", "zip"] }]
+  });
+  if (r.canceled || !r.filePaths || !r.filePaths.length) return { status: false, cancelled: true };
+  const file = r.filePaths[0];
+  try { return await rpcCall(config.rpcPort(), config.rpcSecret(), 'mds action:install file:"' + file + '"'); }
+  catch (e) { return { status: false, error: e.message }; }
+});
 
 // ---- graceful shutdown: stop the node cleanly (H2 close) before quitting ----
 let quitting = false;

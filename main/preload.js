@@ -16,5 +16,8 @@ contextBridge.exposeInMainWorld("minima", {
   cmd: (command) => ipcRenderer.invoke("rpc:cmd", command),
 
   // where MDS serves dapps (host + port); the renderer builds the per-dapp URL
-  mdsBase: () => ipcRenderer.invoke("mds:base")
+  mdsBase: () => ipcRenderer.invoke("mds:base"),
+
+  // pick a .mds.zip and install it (opens the native file dialog in main)
+  install: () => ipcRenderer.invoke("mds:install")
 });
