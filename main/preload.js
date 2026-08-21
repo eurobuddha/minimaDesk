@@ -21,6 +21,10 @@ contextBridge.exposeInMainWorld("minima", {
   // pick a .mds.zip and install it (opens the native file dialog in main)
   install: () => ipcRenderer.invoke("mds:install"),
 
+  // native store: fetch a repo JSON, and download+install a dapp by its file URL
+  storeFetch: (url) => ipcRenderer.invoke("store:fetch", url),
+  storeInstall: (fileUrl) => ipcRenderer.invoke("store:install", fileUrl),
+
   // dev diagnostic channel (reliable — bypasses console-message forwarding)
   diag: (m) => ipcRenderer.send("diag", String(m))
 });

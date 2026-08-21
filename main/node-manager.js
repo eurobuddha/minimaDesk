@@ -36,6 +36,7 @@ class NodeManager extends EventEmitter {
     this.health = null;          // { version, block, connections, maxima, mdsUp }
     this.healthTimer = null;
     this.startedTs = 0;
+    this.adopted = false;        // true when we attached to a node a previous instance left running
   }
 
   jarPath() {
@@ -72,10 +73,18 @@ class NodeManager extends EventEmitter {
     return args;
   }
 
-  start() {
-    if (this.proc) return;
+  async start() {
+    if (this.proc || this.adopted) return;
     this.lastError = null;
     this.setState("starting");
+    // Adopt an already-running node before spawning. A previous minimaDesk instance
+    // that didn't fully exit still holds 20001/03/05 with OUR secret; spawning a second
+    // node just fails to bind and exits → ERROR while the UI talks to the ghost. Instead,
+    // if a node answers our RPC, adopt it: no duplicate, no port race, RPC works immediately.
+    try {
+      const s = await rpcCall(config.rpcPort(), config.rpcSecret(), "status");
+      if (s && s.status) { this.log("[app] adopting already-running node on rpc " + config.rpcPort()); this.adopted = true; this.startHealth(); return; }
+    } catch (e) { /* nothing there — spawn our own */ }
     const args = this.buildArgs();
     this.log("[app] starting node: java " + args.join(" ")
       .replace(config.rpcSecret(), "•••").replace(config.mdsPassword(), "•••"));
@@ -98,7 +107,11 @@ class NodeManager extends EventEmitter {
   }
 
   async stop() {
-    if (!this.proc) { this.setState("stopped"); return; }
+    // Adopted node (no child process of ours): stop it over RPC so we don't orphan it.
+    if (!this.proc) {
+      if (this.adopted) { try { await rpcCall(config.rpcPort(), config.rpcSecret(), "quit"); } catch (e) {} this.adopted = false; this.stopHealth(); }
+      this.setState("stopped"); return;
+    }
     this.setState("stopping");
     this.stopHealth();
     const gone = new Promise(res => {
@@ -115,7 +128,7 @@ class NodeManager extends EventEmitter {
   startHealth() {
     this.stopHealth();
     const poll = async () => {
-      if (!this.proc) return;
+      if (!this.proc && !this.adopted) return;
       try {
         const j = await rpcCall(config.rpcPort(), config.rpcSecret(), "status");
         const r = (j && j.response) || {};

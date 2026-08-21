@@ -15,6 +15,7 @@ let ACTIVE = "home";
 let FILTER = "";
 let ACTIVE_CAT = "all";
 let LAST_BLOCK = 0;
+let NODE_RUNNING = false;
 
 // ---- helpers ----
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
@@ -68,11 +69,13 @@ function iconUrl(d) {
   if (!ic || !d.sessionid || !PORTS.mds) return "";
   return "https://127.0.0.1:" + PORTS.mds + "/" + d.uid + "/" + encodeURI(ic) + "?uid=" + d.sessionid;
 }
+// The node reports permission at conf.permission (MiniDAPP.toJSON nests it in `conf`).
+// Older shapes exposed it top-level as trust/permission — check all three.
 function permsOf(d) {
-  const tr = (d.trust || d.permission || "").toLowerCase();
+  const tr = ((d.conf && d.conf.permission) || d.trust || d.permission || "").toLowerCase();
   if (tr === "write") return "write";
   if (tr === "read") return "read";
-  return "";
+  return "read";
 }
 
 // ---- app-icon markup (real PNG over a gradient+monogram fallback) ----
@@ -134,18 +137,21 @@ function switchTab(id) {
   $("webviews").style.display = kind === "dapp" ? "block" : "none";
   $("logsview").style.display = kind === "logs" ? "flex" : "none";
   $("termview").style.display = kind === "terminal" ? "flex" : "none";
+  $("storeview").style.display = kind === "store" ? "flex" : "none";
   document.querySelectorAll(".webviews webview").forEach(wv => {
     wv.classList.toggle("hidden", !(kind === "dapp" && wv.dataset.tab === id));
   });
   if (kind === "logs") refreshLogs();
   if (kind === "terminal") setTimeout(() => $("term-input").focus(), 30);
+  if (kind === "store" && !STORE_LOADED) loadStore();
   renderTabs();
 }
 
-// open a first-party native tab (logs / terminal), reusing it if already open
+// open a first-party native tab (logs / terminal / store), reusing it if already open
 function openNative(kind) {
   const id = kind;
-  if (!TABS.find(t => t.id === id)) TABS.push({ id, kind, name: kind === "logs" ? "Node logs" : "Terminal" });
+  const NAMES = { logs: "Node logs", terminal: "Terminal", store: "Store" };
+  if (!TABS.find(t => t.id === id)) TABS.push({ id, kind, name: NAMES[kind] || kind });
   switchTab(id);
 }
 
@@ -196,7 +202,7 @@ async function loadDapps() {
   const list = Array.isArray(r.minidapps) ? r.minidapps : (Array.isArray(r) ? r : []);
   const real = list.filter(d => !((d.conf && d.conf.name) || "").toLowerCase().startsWith("_"));
   DAPPS = real;
-  const sig = DAPPS.map(d => d.uid + ":" + (d.trust || "")).join(",");
+  const sig = DAPPS.map(d => d.uid + ":" + permsOf(d)).join(",");
   if (sig === DAPP_SIG) return;
   DAPP_SIG = sig;
   renderHome();
@@ -419,6 +425,117 @@ async function toggleTrust(d) {
   await loadDapps();
 }
 
+// ============ native MiniDapp Store ============
+// The stock third-party Dapp Store dapp points at the official /data/*.json paths, which have
+// moved and now 404. minimaDesk hosts its own store instead: fetch a repository descriptor,
+// then download + install the chosen .mds.zip through the node's proven `mds action:install`.
+const STORE_REPOS = [
+  { id: "panda",    name: "PandaDapps",       url: "https://eurobuddha.com/pandadapps.json" },
+  { id: "official", name: "Minima Official",  url: "https://minidapps.minima.global/dapps.json", base: "https://minidapps.minima.global" }
+];
+let STORE_REPO = STORE_REPOS[0];
+let STORE_LOADED = false;
+let STORE_ITEMS = [];
+
+function absUrl(u, base) {
+  if (!u) return "";
+  try { return new URL(u, base).toString(); } catch (e) { return u; }
+}
+// Normalise either repo shape into { name, version, description, icon, file }.
+function normaliseStore(repo, json) {
+  const head = { name: repo.name, description: "", icon: "" };
+  let list = [];
+  if (Array.isArray(json)) {
+    // official shape: [{ name, filename, icon(relative), description, version }]
+    const base = repo.base || repo.url;
+    list = json.map(d => ({
+      name: d.name, version: d.version, description: d.description,
+      icon: absUrl(d.icon, base + "/"),
+      file: d.file ? absUrl(d.file, base + "/") : (d.filename ? base + "/downloads/" + d.filename : "")
+    }));
+  } else if (json && Array.isArray(json.dapps)) {
+    // repository shape: { name, description, icon, dapps:[{ name, file, icon, description, version }] }
+    head.name = json.name || repo.name;
+    head.description = json.description || "";
+    head.icon = absUrl(json.icon, repo.url);
+    list = json.dapps.map(d => ({
+      name: d.name, version: d.version, description: d.description,
+      icon: absUrl(d.icon, repo.url),
+      file: absUrl(d.file || d.filename, repo.url)
+    }));
+  }
+  return { head, list: list.filter(d => d.name && d.file) };
+}
+
+async function loadStore() {
+  STORE_LOADED = true;
+  buildRepoSelect();
+  const grid = $("store-grid"); grid.innerHTML = `<div class="store-empty">Loading ${esc(STORE_REPO.name)}…</div>`;
+  $("store-head").innerHTML = "";
+  const res = await api.storeFetch(STORE_REPO.url);
+  if (!res || res.status === false) {
+    grid.innerHTML = `<div class="store-empty">Couldn't reach ${esc(STORE_REPO.name)}.<br><span style="font-size:12px">${esc((res && res.error) || "")}</span></div>`;
+    return;
+  }
+  const { head, list } = normaliseStore(STORE_REPO, res.response);
+  STORE_ITEMS = list;
+  $("store-head").innerHTML = `<div class="st-top">
+      ${head.icon ? `<img class="st-ic" src="${esc(head.icon)}" alt="">` : ""}
+      <div><h2>${esc(head.name)}</h2>${head.description ? `<p>${esc(head.description)}</p>` : ""}</div>
+    </div>`;
+  $("store-head").querySelectorAll("img").forEach(im => im.addEventListener("error", () => im.remove()));
+  renderStore();
+}
+
+function installedByName(name) {
+  return DAPPS.find(d => dName(d).toLowerCase() === String(name || "").toLowerCase());
+}
+function renderStore() {
+  const grid = $("store-grid");
+  if (!STORE_ITEMS.length) { grid.innerHTML = `<div class="store-empty">No MiniDapps in this store.</div>`; return; }
+  grid.innerHTML = "";
+  for (const d of STORE_ITEMS) {
+    const inst = installedByName(d.name);
+    const el = document.createElement("div");
+    el.className = "scard" + (inst ? " installed" : "");
+    el.innerHTML = `
+      <img class="sic" alt="">
+      <div class="sbody">
+        <div class="sname">${esc(d.name)} <span class="sver">${d.version ? "v" + esc(d.version) : ""}</span></div>
+        <div class="sdesc">${esc(d.description || "")}</div>
+        <div class="sfoot">
+          <button class="sbtn ${inst ? "ghost" : ""}">${inst ? "Reinstall" : "Install"}</button>
+          <span class="smsg">${inst ? "installed" : ""}</span>
+        </div>
+      </div>`;
+    const img = el.querySelector(".sic");
+    if (d.icon) { img.addEventListener("error", () => { img.style.visibility = "hidden"; }); img.src = d.icon; }
+    const btn = el.querySelector(".sbtn"), msg = el.querySelector(".smsg");
+    btn.addEventListener("click", () => installFromStore(d, btn, msg));
+    grid.appendChild(el);
+  }
+}
+async function installFromStore(d, btn, msg) {
+  if (!NODE_RUNNING) { msg.className = "smsg err"; msg.textContent = "node still starting — try again in a moment"; return; }
+  btn.disabled = true; const old = btn.textContent; btn.textContent = "Installing…";
+  msg.className = "smsg"; msg.textContent = "downloading…";
+  const res = await api.storeInstall(d.file);
+  if (res && res.status !== false) {
+    msg.className = "smsg ok"; msg.textContent = "installed ✓"; btn.textContent = "Reinstall"; btn.classList.add("ghost");
+    DAPP_SIG = ""; await loadDapps(); await checkPending();
+  } else {
+    msg.className = "smsg err"; msg.textContent = (res && res.error) || "install failed"; btn.textContent = old;
+  }
+  btn.disabled = false;
+}
+function buildRepoSelect() {
+  const sel = $("store-repo");
+  if (sel.options.length) return;
+  STORE_REPOS.forEach(r => { const o = document.createElement("option"); o.value = r.id; o.textContent = r.name; sel.appendChild(o); });
+  sel.value = STORE_REPO.id;
+  sel.addEventListener("change", () => { STORE_REPO = STORE_REPOS.find(r => r.id === sel.value) || STORE_REPOS[0]; loadStore(); });
+}
+
 // ============ permission prompt (MDS pending accept/deny) ============
 async function checkPending() {
   const res = await api.cmd("mds action:pending");
@@ -453,6 +570,7 @@ function applyStatus(s) {
   if (!s) return;
   const st = s.state, h = s.health || {};
   const running = st === "running";
+  NODE_RUNNING = running;
   const blk = h.block || 0;
   const blkStr = blk ? fmtNum(blk) : "—";
   const pulseCls = running ? "" : (st === "error" ? "err" : "off");
@@ -533,6 +651,7 @@ document.addEventListener("click", (e) => {
 });
 $("pv-copy").addEventListener("click", async () => { if (MX_ADDR) { try { await navigator.clipboard.writeText(MX_ADDR); } catch (e) {} } });
 document.querySelectorAll(".tool").forEach(el => el.addEventListener("click", () => openNative(el.dataset.open)));
+$("store-refresh").addEventListener("click", () => loadStore());
 
 // ---- Logs ----
 let LOGS_FOLLOW = true;

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; img-src 'self' data: https://127.0.0.1:* https://localhost:*;" />
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; img-src 'self' data: https:;" />
 <title>minimaDesk</title>
 <link rel="stylesheet" href="styles.css" />
 </head>
@@ -27,6 +27,9 @@
     <div class="tabs" id="tabs"></div>
     <div class="tab add" id="newtab" title="Install a MiniDapp">＋</div>
     <div class="tb-spacer"></div>
+    <div class="tool" id="opstore" data-open="store" title="MiniDapp Store">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8l1.2-3.2A1 1 0 0 1 6.1 4h11.8a1 1 0 0 1 .9.8L20 8M4 8v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V8M4 8h16M9 20v-6h6v6"/></svg>
+    </div>
     <div class="tool" id="opterminal" data-open="terminal" title="Terminal">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l4 4-4 4"/><path d="M12 16h6"/></svg>
     </div>
@@ -126,6 +129,20 @@
 
       <!-- one <webview> per open dapp lives here -->
       <div class="webviews" id="webviews"></div>
+
+      <!-- native MiniDapp Store panel -->
+      <section class="native store" id="storeview" style="display:none">
+        <div class="nbar">
+          <b>MiniDapp Store</b>
+          <span class="grow"></span>
+          <select id="store-repo" class="store-select"></select>
+          <button class="btn ghost sm" id="store-refresh">Refresh</button>
+        </div>
+        <div class="storewrap">
+          <div class="store-head" id="store-head"></div>
+          <div class="store-grid" id="store-grid"><div class="store-empty">Loading store…</div></div>
+        </div>
+      </section>
 
       <!-- native first-party panels (logs + terminal) -->
       <section class="native" id="logsview" style="display:none">

@@ -369,6 +369,36 @@ body::after{
 .term-in input{flex:1;background:none;border:0;outline:0;color:var(--ink);font-size:12px}
 .term-in input::placeholder{color:var(--ink-4)}
 
+/* ============ native MiniDapp Store ============ */
+.store-select{background:var(--s3);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;
+  height:30px;padding:0 8px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.storewrap{flex:1;overflow-y:auto;overflow-x:hidden;padding:22px 34px 40px}
+.store-head{margin-bottom:22px}
+.store-head .st-top{display:flex;align-items:center;gap:14px}
+.store-head .st-ic{width:46px;height:46px;border-radius:12px;flex:none;object-fit:cover;background:var(--s3);box-shadow:var(--shadow-tile)}
+.store-head h2{margin:0;font-size:20px;font-weight:800;letter-spacing:-.4px}
+.store-head p{margin:3px 0 0;font-size:13px;color:var(--ink-3);font-weight:500}
+.store-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.store-empty{grid-column:1/-1;padding:50px 20px;text-align:center;color:var(--ink-4);font-weight:600}
+.scard{display:flex;gap:13px;padding:14px;border-radius:14px;border:1px solid var(--line-2);
+  background:linear-gradient(180deg,var(--s1),color-mix(in srgb,var(--s1) 86%,var(--ground)));box-shadow:var(--shadow-tile)}
+.scard .sic{width:52px;height:52px;flex:none;border-radius:13px;object-fit:cover;background:var(--s3);box-shadow:var(--shadow-tile)}
+.scard .sbody{flex:1;min-width:0;display:flex;flex-direction:column}
+.scard .sname{font-size:14px;font-weight:800;display:flex;align-items:center;gap:8px}
+.scard .sver{font-family:var(--mono);font-size:10.5px;color:var(--ink-4);font-weight:500}
+.scard .sdesc{font-size:12px;color:var(--ink-3);line-height:1.45;margin-top:4px;font-weight:500;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.scard .sfoot{margin-top:10px;display:flex;align-items:center;gap:8px}
+.scard .sbtn{height:30px;padding:0 14px;border-radius:8px;border:0;cursor:pointer;font-weight:700;font-size:12px;
+  background:var(--orange);color:#fff;box-shadow:0 6px 14px -8px rgba(255,81,47,.8)}
+.scard .sbtn:hover{background:var(--orange-dk)}
+.scard .sbtn.ghost{background:var(--s3);color:var(--ink);border:1px solid var(--line-2);box-shadow:none}
+.scard .sbtn:disabled{opacity:.6;cursor:default}
+.scard .smsg{font-size:11px;font-weight:600;color:var(--ink-3)}
+.scard .smsg.ok{color:#28C840}
+.scard .smsg.err{color:var(--orange)}
+.scard.installed{opacity:.9}
+
 /* ============ node popover ============ */
 .pop{position:fixed;top:48px;right:14px;width:340px;z-index:200;
   background:var(--s1);border:1px solid var(--line-2);border-radius:14px;box-shadow:var(--shadow-panel);overflow:hidden}

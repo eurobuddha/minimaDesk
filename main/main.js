@@ -44,6 +44,13 @@ function createWindow() {
     win.webContents.on("did-finish-load", () => console.log("[did-finish-load] renderer loaded"));
     win.webContents.on("preload-error", (_e, p, err) => console.log("[preload-error]", p, err && err.message));
     win.webContents.on("render-process-gone", (_e, d) => console.log("[render-gone]", d && d.reason));
+    if (process.env.MDESK_SEQ) {
+      // MDESK_SEQ = JSON [{js, ms}] — run each snippet at its delay (dev verification only)
+      let steps = []; try { steps = JSON.parse(process.env.MDESK_SEQ); } catch (e) {}
+      steps.forEach((s) => setTimeout(() => {
+        win.webContents.executeJavaScript(s.js).then(r => console.log("[seq]", r)).catch(e => console.log("[seq fail]", e.message));
+      }, s.ms || 13000));
+    }
     if (process.env.MDESK_SHOT) {
       setTimeout(() => {
         win.webContents.capturePage().then(img => {
@@ -110,6 +117,65 @@ ipcMain.handle("mds:install", async () => {
   const file = r.filePaths[0];
   try { return await rpcCall(config.rpcPort(), config.rpcSecret(), 'mds action:install file:"' + file + '"'); }
   catch (e) { return { status: false, error: e.message }; }
+});
+
+// ---- native MiniDapp Store: fetch a repo JSON, download + install through the node ----
+// The stock third-party "Dapp Store" MiniDapp points at the official /data/*.json paths,
+// which have moved and now 404. Instead of depending on that broken dapp, minimaDesk hosts
+// its own store: it fetches a repository descriptor ({name, dapps:[{name,file,icon,...}]}),
+// downloads the chosen .mds.zip, and installs it via the node's proven `mds action:install`.
+const { net } = require("electron");
+const os = require("os");
+const fs = require("fs");
+
+// GET a URL following redirects (GitHub release zips 302 to a CDN). Returns a Buffer.
+function fetchBuffer(url, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirects > 6) return reject(new Error("too many redirects"));
+    const req = net.request(url);
+    req.on("response", (res) => {
+      const code = res.statusCode;
+      if (code >= 300 && code < 400 && res.headers.location) {
+        const loc = Array.isArray(res.headers.location) ? res.headers.location[0] : res.headers.location;
+        const next = new URL(loc, url).toString();
+        res.on("data", () => {}); res.on("end", () => {});
+        return resolve(fetchBuffer(next, redirects + 1));
+      }
+      if (code < 200 || code >= 300) { res.on("data", () => {}); return reject(new Error("HTTP " + code + " for " + url)); }
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => resolve(Buffer.concat(chunks)));
+      res.on("error", reject);
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+/** Fetch + parse a store repository JSON. */
+ipcMain.handle("store:fetch", async (_e, url) => {
+  try {
+    const buf = await fetchBuffer(String(url));
+    return { status: true, response: JSON.parse(buf.toString("utf8")) };
+  } catch (e) { return { status: false, error: e.message }; }
+});
+
+/** Download a .mds.zip by URL to a temp file, then install it through the node (trust:read). */
+ipcMain.handle("store:install", async (_e, fileUrl) => {
+  let tmp = "";
+  try {
+    const buf = await fetchBuffer(String(fileUrl));
+    if (!buf || buf.length < 100) throw new Error("empty download");
+    const safe = (String(fileUrl).split("/").pop() || "dapp.mds.zip").replace(/[^A-Za-z0-9._-]/g, "_");
+    tmp = path.join(os.tmpdir(), "mdesk-" + Date.now() + "-" + safe);
+    fs.writeFileSync(tmp, buf);
+    const r = await rpcCall(config.rpcPort(), config.rpcSecret(), 'mds action:install file:"' + tmp + '"');
+    return r;
+  } catch (e) {
+    return { status: false, error: e.message };
+  } finally {
+    if (tmp) { try { fs.unlinkSync(tmp); } catch (e) {} }
+  }
 });
 
 // ---- graceful shutdown: stop the node cleanly (H2 close) before quitting ----
