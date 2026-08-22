@@ -157,17 +157,20 @@ function openNative(kind) {
 
 // ============ open / close a dapp tab ============
 function dappUrl(uid, sessionid) { return `https://127.0.0.1:${PORTS.mds}/${uid}/index.html?uid=${sessionid}`; }
-function openDapp(d) {
+async function openDapp(d) {
   if (d.native) { openNative(d.native); return; }
   recordRecent(d.uid);
   const existing = TABS.find(t => t.kind === "dapp" && t.uid === d.uid);
   if (existing) { switchTab(existing.id); return; }
+  // Store dapps need WRITE to install; granting it rotates the sessionid, so do it BEFORE we build
+  // the webview URL and use the fresh session — otherwise the dapp loads with a stale, invalid one.
+  const sessionid = await ensureStoreWrite(d);
   const id = "dapp-" + d.uid;
   const name = dName(d);
-  TABS.push({ id, kind: "dapp", uid: d.uid, sessionid: d.sessionid, name, hue: hueFor(name), icon: iconUrl(d) });
+  TABS.push({ id, kind: "dapp", uid: d.uid, sessionid, name, hue: hueFor(name), icon: iconUrl(d) });
   const wv = document.createElement("webview");
   wv.dataset.tab = id;
-  wv.setAttribute("src", dappUrl(d.uid, d.sessionid));
+  wv.setAttribute("src", dappUrl(d.uid, sessionid));
   wv.setAttribute("partition", "persist:mds");
   wv.setAttribute("allowpopups", "");
   $("webviews").appendChild(wv);
@@ -206,21 +209,23 @@ async function loadDapps() {
   if (sig === DAPP_SIG) return;
   DAPP_SIG = sig;
   renderHome();
-  grantStoreWrite();
 }
 
 // Store MiniDapps install other dapps, which needs WRITE (else each install queues to Pending).
-// The stock node auto-grants the official Dapp Store WRITE; we do the same for the known store
-// dapps so "install direct from the App Store" works without an approval step per install.
+// Granting write does a delete+insert of the MiniDAPP on the node, which ROTATES its sessionid —
+// so we grant lazily right before opening the dapp (see openDapp), never to an already-open one,
+// and then open the webview with the fresh post-grant session. Known store dapps only.
 const STORE_WRITE_ALLOW = ["minimacore app store", "dapp store", "pandadapps", "pandaapps"];
-let STORE_WRITE_DONE = false;
-async function grantStoreWrite() {
-  if (STORE_WRITE_DONE) return;
-  const targets = DAPPS.filter(d => STORE_WRITE_ALLOW.includes(dName(d).toLowerCase()) && permsOf(d) !== "write");
-  if (!targets.length) { STORE_WRITE_DONE = true; return; }
-  for (const d of targets) { try { await api.cmd("mds action:permission uid:" + d.uid + " trust:write"); D("granted write to store dapp: " + dName(d)); } catch (e) {} }
-  STORE_WRITE_DONE = true;
-  DAPP_SIG = "";           // reflect the new permission on next poll
+function isStoreDapp(d) { return STORE_WRITE_ALLOW.includes(dName(d).toLowerCase()); }
+// Grant write (if needed) and return the dapp's CURRENT sessionid (post-rotation).
+async function ensureStoreWrite(d) {
+  if (!isStoreDapp(d) || permsOf(d) === "write") return d.sessionid;
+  try { await api.cmd("mds action:permission uid:" + d.uid + " trust:write"); D("granted write to store dapp: " + dName(d)); } catch (e) { return d.sessionid; }
+  DAPP_SIG = "";
+  const res = await api.cmd("mds action:list");                 // re-read to get the rotated session
+  const list = (res && res.response && res.response.minidapps) || [];
+  const fresh = list.find(x => x.uid === d.uid);
+  return (fresh && fresh.sessionid) || d.sessionid;
 }
 
 // synthetic native tools shown inside "Node & Tools"

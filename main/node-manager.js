@@ -199,6 +199,7 @@ class NodeManager extends EventEmitter {
       if (!l.trim()) continue;
       l = l.replace(/phrase:"[^"]*"/g, 'phrase:"•••"').replace(/privatekey:0x[0-9A-Fa-f]+/g, "privatekey:•••");
       this.logs.push(l.length > 400 ? l.slice(0, 400) + "…" : l);
+      if (process.env.MDESK_NODELOG) { try { fs.appendFileSync(process.env.MDESK_NODELOG, l + "\n"); } catch (e) {} }
     }
     if (this.logs.length > LOG_MAX_LINES) this.logs.splice(0, this.logs.length - LOG_MAX_LINES);
     this.emit("log");

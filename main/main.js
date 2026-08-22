@@ -41,6 +41,14 @@ function createWindow() {
       if (m !== undefined) console.log("[renderer]", m);
     });
     win.webContents.on("did-fail-load", (_e, code, desc, url) => console.log("[did-fail-load]", code, desc, url));
+    // capture console from dapp <webview>s too (their MDS.log / errors)
+    app.on("web-contents-created", (_e, contents) => {
+      try {
+        if (contents.getType && contents.getType() === "webview") {
+          contents.on("console-message", (ev, level, message) => console.log("[wv]", (ev && ev.message) || message || ""));
+        }
+      } catch (e) {}
+    });
     win.webContents.on("did-finish-load", () => console.log("[did-finish-load] renderer loaded"));
     win.webContents.on("preload-error", (_e, p, err) => console.log("[preload-error]", p, err && err.message));
     win.webContents.on("render-process-gone", (_e, d) => console.log("[render-gone]", d && d.reason));
@@ -50,6 +58,27 @@ function createWindow() {
       steps.forEach((s) => setTimeout(() => {
         win.webContents.executeJavaScript(s.js).then(r => console.log("[seq]", r)).catch(e => console.log("[seq fail]", e.message));
       }, s.ms || 13000));
+    }
+    if (process.env.MDESK_ASTEST) {
+      const { webContents } = require("electron");
+      setTimeout(() => win.webContents.executeJavaScript(
+        `(function(){var t=[...document.querySelectorAll('#sections .tile')].find(x=>/app store/i.test(x.textContent));if(t){t.click();return 'opened';}return 'no-tile';})()`
+      ).then(r => console.log("[astest] open:", r)), 13000);
+      setTimeout(async () => {
+        const wc = webContents.getAllWebContents().find(c => { try { return /127\.0\.0\.1:200/.test(c.getURL()); } catch (e) { return false; } });
+        if (!wc) { console.log("[astest] no webview"); return; }
+        // Run the App Store's OWN MDS calls in its page context (valid session, real space-free path)
+        const script = `(async()=>{
+          if(typeof MDS==='undefined') return 'NO_MDS';
+          const url='https://eurobuddha.com/panda_dapps/keyuses-0.1.51.mds.zip';
+          const dl=await new Promise(r=>MDS.file.download(url,res=>r(res)));
+          const path=(dl&&dl.response&&dl.response.download&&dl.response.download.path)||'';
+          if(!path) return 'DL_FAIL '+JSON.stringify(dl).slice(0,160);
+          const ins=await new Promise(r=>MDS.cmd('mds action:install file:'+path+' trust:read',res=>r(res)));
+          return 'path='+path+' || install='+JSON.stringify(ins).slice(0,240);
+        })()`;
+        wc.executeJavaScript(script).then(r => console.log("[astest] RESULT:", r)).catch(e => console.log("[astest] err:", e.message));
+      }, 22000);
     }
     if (process.env.MDESK_SHOT) {
       setTimeout(() => {
