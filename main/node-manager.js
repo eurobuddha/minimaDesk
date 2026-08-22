@@ -167,33 +167,40 @@ class NodeManager extends EventEmitter {
     this.health = null;
   }
 
-  // Connect the node to the user's Maxima relay fleet and pin a stable static MLS, so inbound
-  // Maxima is reliably forwarded even behind NAT (fixes "can send, can't receive"). Runtime-only:
-  // uses the `connect` and `maxextra` commands — it never touches startup args or chain P2P.
+  // Connect the node to the user's Maxima relay so inbound Maxima is forwarded even behind NAT,
+  // pin a stable static MLS, then keep contact addresses fresh. Runtime-only (connect / maxextra /
+  // maxima refresh) — never touches startup args or chain P2P.
   async setupMaximaRelays() {
+    await this.healMaxima();
+    // Periodic heal: a contact we hear from often is marked "seen", so the node's 30-min staleness
+    // gate never re-resolves its address — and if that contact (e.g. a phone that changed networks)
+    // rotates its host, our cached address goes stale and sends silently fail. A periodic heal
+    // reconnects the relay and re-pulls every contact's live address so 2-way delivery self-repairs.
+    if (this.maximaRefreshTimer) clearInterval(this.maximaRefreshTimer);
+    this.maximaRefreshTimer = setInterval(() => { this.healMaxima().catch(() => {}); }, MAXIMA_REFRESH_MS);
+  }
+
+  // Reconnect the relay, ensure a static MLS is pinned, and force-refresh every contact's live
+  // address. Safe to call anytime — this is the "Heal Maxima" action (great after a network change).
+  async healMaxima() {
     const rpc = (c) => rpcCall(config.rpcPort(), config.rpcSecret(), c);
     try {
       for (const r of MAXIMA_RELAYS) { try { await rpc("connect host:" + r); } catch (e) {} }
-      this.log("[app] connected to " + MAXIMA_RELAYS.length + " Maxima relays");
-      // give the relays a moment to attach as hosts, then pin a connected fleet relay as static MLS
-      await new Promise(res => setTimeout(res, 12_000));
+      await new Promise(res => setTimeout(res, 3500));
       const info = (await rpc("maxima action:info").catch(() => ({}))).response || {};
-      if (info.staticmls) return;                       // already pinned — leave it
-      const hosts = ((await rpc("maxima action:hosts").catch(() => ({}))).response || {}).hosts || [];
-      const isFleet = (h) => MAXIMA_RELAYS.includes(h.host);
-      const pref = hosts.find(h => h.host === PREFERRED_MLS_RELAY && h.connected);
-      const relay = pref || hosts.find(h => isFleet(h) && h.connected);
-      if (relay && relay.address && /^Mx.+@.+:\d+$/.test(relay.address)) {
-        await rpc('maxextra action:staticmls host:' + relay.address);
-        this.log("[app] pinned static MLS to fleet relay " + relay.host);
+      if (!info.staticmls) {
+        const hosts = ((await rpc("maxima action:hosts").catch(() => ({}))).response || {}).hosts || [];
+        const relay = hosts.find(h => h.host === PREFERRED_MLS_RELAY && h.connected)
+                   || hosts.find(h => MAXIMA_RELAYS.includes(h.host) && h.connected);
+        if (relay && relay.address && /^Mx.+@.+:\d+$/.test(relay.address)) {
+          await rpc('maxextra action:staticmls host:' + relay.address);
+          this.log("[app] pinned static MLS to fleet relay " + relay.host);
+        }
       }
-    } catch (e) { this.log("[app] maxima relay setup: " + e.message); }
-    // Periodic MLS refresh: a contact we hear from often is marked "seen", so the node's 30-min
-    // staleness gate never re-resolves its address — and if that contact (e.g. a phone on static
-    // MLS) rotates its host, our cached address goes stale and sends silently fail (relay says
-    // UNKNOWN). Forcing a refresh re-pulls every contact's live address so sends keep landing.
-    if (this.maximaRefreshTimer) clearInterval(this.maximaRefreshTimer);
-    this.maximaRefreshTimer = setInterval(() => { rpc("maxima action:refresh").catch(() => {}); }, MAXIMA_REFRESH_MS);
+      await rpc("maxima action:refresh");                 // re-pull every contact's current address
+      this.log("[app] maxima healed: relay reconnected + contacts refreshed");
+      return { status: true };
+    } catch (e) { this.log("[app] maxima heal failed: " + e.message); return { status: false, error: e.message }; }
   }
 
   setState(s) { this.state = s; this.emit("status", this.snapshot()); }

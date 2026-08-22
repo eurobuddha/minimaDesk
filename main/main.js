@@ -144,6 +144,9 @@ ipcMain.handle("rpc:cmd", async (_e, command) => {
  *  The per-dapp uid+sessionid come from `mds action:list`; here we hand over host + port. */
 ipcMain.handle("mds:base", () => ({ host: "127.0.0.1", port: config.mdsPort() }));
 
+/** On-demand "Heal Maxima": reconnect the relay, re-pin static MLS, refresh contact addresses. */
+ipcMain.handle("maxima:heal", () => node.healMaxima());
+
 /** Pick a .mds.zip and install it (trust:read by default; user grants write via the permission prompt). */
 ipcMain.handle("mds:install", async () => {
   const r = await dialog.showOpenDialog(win, {

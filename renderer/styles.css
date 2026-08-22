@@ -538,6 +538,10 @@ body::after{
 .addr code{flex:1 1 auto;font-size:11px;color:var(--ink);overflow-x:auto;white-space:nowrap}
 .addr .cp{flex:none;color:var(--ink-3);cursor:pointer;display:grid;place-items:center;width:24px;height:24px;border-radius:6px}
 .addr .cp:hover{color:var(--ink);background:var(--s3)}
+.pop .heal{width:100%;margin-top:12px;justify-content:center;gap:8px}
+.heal-msg{font-size:11px;font-weight:600;margin-top:8px;color:var(--ink-3);min-height:14px;line-height:1.4}
+.heal-msg.ok{color:#28C840}
+.heal-msg.err{color:var(--orange)}
 
 /* ============ permission prompt ============ */
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:300;backdrop-filter:blur(2px)}

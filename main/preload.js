@@ -28,6 +28,9 @@ contextBridge.exposeInMainWorld("minima", {
   // fetch an MDS icon as a data URL (reliable — bypasses self-signed cert img loads)
   iconData: (url) => ipcRenderer.invoke("mds:icon", url),
 
+  // on-demand Maxima heal (reconnect relay + re-pin MLS + refresh contacts)
+  healMaxima: () => ipcRenderer.invoke("maxima:heal"),
+
   // dev diagnostic channel (reliable — bypasses console-message forwarding)
   diag: (m) => ipcRenderer.send("diag", String(m))
 });

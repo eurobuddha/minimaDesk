@@ -740,6 +740,17 @@ document.addEventListener("click", (e) => {
   if (!e.target.closest("#nodepop") && !e.target.closest("#nodechip") && !e.target.closest("#nodecard")) $("nodepop").hidden = true;
 });
 $("pv-copy").addEventListener("click", async () => { if (MX_ADDR) { try { await navigator.clipboard.writeText(MX_ADDR); } catch (e) {} } });
+$("pv-heal").addEventListener("click", async () => {
+  const b = $("pv-heal"), m = $("pv-heal-msg"); const old = b.innerHTML;
+  b.disabled = true; m.className = "heal-msg"; m.textContent = "reconnecting relay + refreshing contacts…";
+  try {
+    const res = await api.healMaxima();
+    if (res && res.status !== false) { m.className = "heal-msg ok"; m.textContent = "Maxima healed — relay reconnected, contacts refreshed."; }
+    else { m.className = "heal-msg err"; m.textContent = (res && res.error) || "heal failed — is the node running?"; }
+  } catch (e) { m.className = "heal-msg err"; m.textContent = "heal failed: " + e.message; }
+  b.disabled = false; b.innerHTML = old;
+  setTimeout(refreshMaximaAddr, 4000);
+});
 document.querySelectorAll(".tool[data-open]").forEach(el => el.addEventListener("click", () => openNative(el.dataset.open)));
 $("optheme").addEventListener("click", toggleTheme);
 $("store-refresh").addEventListener("click", () => loadStore());
