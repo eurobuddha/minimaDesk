@@ -206,6 +206,21 @@ async function loadDapps() {
   if (sig === DAPP_SIG) return;
   DAPP_SIG = sig;
   renderHome();
+  grantStoreWrite();
+}
+
+// Store MiniDapps install other dapps, which needs WRITE (else each install queues to Pending).
+// The stock node auto-grants the official Dapp Store WRITE; we do the same for the known store
+// dapps so "install direct from the App Store" works without an approval step per install.
+const STORE_WRITE_ALLOW = ["minimacore app store", "dapp store", "pandadapps", "pandaapps"];
+let STORE_WRITE_DONE = false;
+async function grantStoreWrite() {
+  if (STORE_WRITE_DONE) return;
+  const targets = DAPPS.filter(d => STORE_WRITE_ALLOW.includes(dName(d).toLowerCase()) && permsOf(d) !== "write");
+  if (!targets.length) { STORE_WRITE_DONE = true; return; }
+  for (const d of targets) { try { await api.cmd("mds action:permission uid:" + d.uid + " trust:write"); D("granted write to store dapp: " + dName(d)); } catch (e) {} }
+  STORE_WRITE_DONE = true;
+  DAPP_SIG = "";           // reflect the new permission on next poll
 }
 
 // synthetic native tools shown inside "Node & Tools"
@@ -244,6 +259,7 @@ function renderCats() {
     el.innerHTML = `<span class="ci"><svg width="17" height="17" viewBox="0 0 24 24">${iconSvg}</svg></span><span class="cn">${esc(name)}</span><span class="cc">${count}</span>`;
     el.addEventListener("click", () => {
       ACTIVE_CAT = id; renderCats(); applyFilter();
+      if (ACTIVE !== "home") switchTab("home");     // jump straight to the filtered launcher, one click
       $("home").scrollTo({ top: 0, behavior: "smooth" });
     });
     host.appendChild(el);
@@ -545,14 +561,22 @@ async function checkPending() {
   showPrompt(pend[0]);
 }
 function showPrompt(p) {
-  const conf = p.conf || {};
-  const name = conf.name || p.uid;
+  // `mds action:pending` returns pending COMMANDS from read-permission dapps: the requesting
+  // dapp is p.minidapp, the queued command is p.command, and p.uid is the pending-command id
+  // to accept/deny. (A store dapp installing a MiniDapp lands here.)
+  const dapp = p.minidapp || {};
+  const conf = dapp.conf || p.conf || {};
+  const name = conf.name || dapp.name || "A MiniDapp";
+  const cmd = p.command || "";
+  const isInstall = /action:install/.test(cmd);
   const hue = hueFor(name);
   $("pr-ic").textContent = monogram(name);
   $("pr-ic").style.background = `linear-gradient(150deg,${hue[0]},${hue[1]})`;
   $("pr-name").textContent = name;
-  $("pr-meta").innerHTML = (conf.version ? "v" + esc(conf.version) + " · " : "") + "<em>new MiniDapp</em>";
-  $("pr-ask").innerHTML = esc(name) + " wants permission to <b>read and write</b> on your node.";
+  $("pr-meta").innerHTML = (conf.version ? "v" + esc(conf.version) + " · " : "") + "<em>needs your approval</em>";
+  $("pr-ask").innerHTML = isInstall
+    ? esc(name) + " wants to <b>install a MiniDapp</b> on your node."
+    : esc(name) + " wants to run:<br><code>" + esc(cmd || "a write command") + "</code>";
   $("pr-allow").onclick = async () => { await api.cmd("mds action:accept uid:" + p.uid); hidePrompt(); DAPP_SIG = ""; await loadDapps(); await checkPending(); };
   $("pr-deny").onclick = async () => { await api.cmd("mds action:deny uid:" + p.uid); hidePrompt(); await checkPending(); };
   $("scrim").hidden = false; $("prompt").hidden = false;
