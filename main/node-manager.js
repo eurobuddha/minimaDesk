@@ -19,18 +19,15 @@ const { rpcCall } = require("./rpc");
 const LOG_MAX_LINES = 800;
 const HEALTH_EVERY_MS = 8_000;
 
-// The user's always-on Maxima relay fleet (mirrors the phone app's RelayStore.DEFAULTS).
-// A stock classic node ADOPTS these as Maxima hosts once it connects to them, so inbound
-// Maxima is forwarded down the node's outbound connection — the fix for "can send, can't
-// receive" behind NAT. We connect on boot and pin one as a static MLS for a stable directory.
-const MAXIMA_RELAYS = [
-  "65.109.31.226:9501",   // eurobuddha - Helsinki, FI
-  "95.179.179.181:9501",  // sally      - Amsterdam, NL
-  "45.77.246.226:9501",   // maxima     - Singapore, SG
-  "78.141.237.9:9501",    // openproject- London, GB
-  "192.248.151.55:9501"   // megammr    - London, GB
-];
-const PREFERRED_MLS_RELAY = "65.109.31.226:9501";   // pin this one as static MLS when connected
+// The user's always-on Maxima relay fleet. A stock classic node ADOPTS a relay as its Maxima
+// host once it connects, so inbound Maxima is forwarded — the fix for "can send, can't receive"
+// behind NAT. IMPORTANT: connect to ONE relay only. Stock Maxima has no inbound msgid de-dup,
+// so attaching to several relays makes the same message arrive on multiple paths and get
+// delivered TWICE (double-printed in MaxSolo). One reliable relay = receive works, no duplicates.
+const PRIMARY_RELAY = "65.109.31.226:9501";         // eurobuddha - Helsinki, FI (also the static MLS)
+const MAXIMA_RELAYS = [PRIMARY_RELAY];
+const PREFERRED_MLS_RELAY = PRIMARY_RELAY;          // pin this one as static MLS when connected
+const MAXIMA_REFRESH_MS = 15 * 60 * 1000;           // periodic MLS refresh so cached contact addresses don't go stale
 
 function tokenizeArgs(s) {
   if (!s || typeof s !== "string") return [];
@@ -163,7 +160,12 @@ class NodeManager extends EventEmitter {
     poll();
     this.healthTimer = setInterval(poll, HEALTH_EVERY_MS);
   }
-  stopHealth() { if (this.healthTimer) { clearInterval(this.healthTimer); this.healthTimer = null; } this.health = null; }
+  stopHealth() {
+    if (this.healthTimer) { clearInterval(this.healthTimer); this.healthTimer = null; }
+    if (this.maximaRefreshTimer) { clearInterval(this.maximaRefreshTimer); this.maximaRefreshTimer = null; }
+    this.maximaSetupDone = false;
+    this.health = null;
+  }
 
   // Connect the node to the user's Maxima relay fleet and pin a stable static MLS, so inbound
   // Maxima is reliably forwarded even behind NAT (fixes "can send, can't receive"). Runtime-only:
@@ -186,6 +188,12 @@ class NodeManager extends EventEmitter {
         this.log("[app] pinned static MLS to fleet relay " + relay.host);
       }
     } catch (e) { this.log("[app] maxima relay setup: " + e.message); }
+    // Periodic MLS refresh: a contact we hear from often is marked "seen", so the node's 30-min
+    // staleness gate never re-resolves its address — and if that contact (e.g. a phone on static
+    // MLS) rotates its host, our cached address goes stale and sends silently fail (relay says
+    // UNKNOWN). Forcing a refresh re-pulls every contact's live address so sends keep landing.
+    if (this.maximaRefreshTimer) clearInterval(this.maximaRefreshTimer);
+    this.maximaRefreshTimer = setInterval(() => { rpc("maxima action:refresh").catch(() => {}); }, MAXIMA_REFRESH_MS);
   }
 
   setState(s) { this.state = s; this.emit("status", this.snapshot()); }

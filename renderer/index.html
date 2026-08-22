@@ -23,10 +23,14 @@
         </defs>
       </svg>
       <b>minima<span>Desk</span></b>
+      <span class="brand-ver mono" id="brand-ver"></span>
     </div>
     <div class="tabs" id="tabs"></div>
     <div class="tab add" id="newtab" title="Install a MiniDapp">＋</div>
     <div class="tb-spacer"></div>
+    <div class="tool" id="optheme" title="Toggle light / dark">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </div>
     <div class="tool" id="opstore" data-open="store" title="MiniDapp Store">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8l1.2-3.2A1 1 0 0 1 6.1 4h11.8a1 1 0 0 1 .9.8L20 8M4 8v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V8M4 8h16M9 20v-6h6v6"/></svg>
     </div>
@@ -53,6 +57,8 @@
         <input id="search" placeholder="Search MiniDapps" spellcheck="false" autocomplete="off" />
         <kbd class="mono">⌘K</kbd>
       </div>
+      <div class="rail-h" id="pinned-h" hidden>Pinned</div>
+      <div id="pinned"></div>
       <div class="rail-h">Library</div>
       <div id="cats"></div>
       <div class="rail-foot">
@@ -75,6 +81,10 @@
       <!-- HOME (the launcher view) -->
       <section class="view home" id="home">
         <div class="cascade" id="cascade"><span class="spark"></span></div>
+        <div class="viewtoggle" id="home-viewtoggle">
+          <button class="vt-grid on" title="Grid view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Grid</button>
+          <button class="vt-carousel" title="Carousel view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="5" width="8" height="14" rx="2"/><path d="M3 8v8M21 8v8" stroke-linecap="round"/></svg>Carousel</button>
+        </div>
         <div class="wrap">
 
           <!-- HERO: featured dapp + live node aura -->
@@ -124,6 +134,29 @@
               <span>node <code id="foot-node">—</code></span>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- CAROUSEL VIEW (cinematic launcher; toggled from the grid) -->
+      <section class="view carousel-view" id="carousel-view">
+        <div class="cx-bg"><div class="cx-particles" id="cx-particles"></div></div>
+        <div class="cx-cascade" id="cx-cascade"><div class="track"></div></div>
+        <div class="cx-head">
+          <div>
+            <h1>Your <span>MiniDapps</span></h1>
+            <p id="cx-sub">Cinematic launcher · drag, scroll, or use arrow keys to browse</p>
+          </div>
+          <div class="viewtoggle">
+            <button class="vt-grid" title="Grid view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Grid</button>
+            <button class="vt-carousel on" title="Carousel view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="5" width="8" height="14" rx="2"/><path d="M3 8v8M21 8v8" stroke-linecap="round"/></svg>Carousel</button>
+          </div>
+        </div>
+        <div class="cx-wrap" id="cx-wrap">
+          <div class="cx-arrow prev" id="cx-prev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 5l-7 7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="cx-carousel" id="cx-carousel"></div>
+          <div class="cx-arrow next" id="cx-next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="cx-dots" id="cx-dots"></div>
+          <div class="cx-hint"><kbd>←</kbd><kbd>→</kbd> navigate · <kbd>⏎</kbd> open · drag to fling</div>
         </div>
       </section>
 

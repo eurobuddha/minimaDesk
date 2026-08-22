@@ -25,6 +25,9 @@ contextBridge.exposeInMainWorld("minima", {
   storeFetch: (url) => ipcRenderer.invoke("store:fetch", url),
   storeInstall: (fileUrl) => ipcRenderer.invoke("store:install", fileUrl),
 
+  // fetch an MDS icon as a data URL (reliable — bypasses self-signed cert img loads)
+  iconData: (url) => ipcRenderer.invoke("mds:icon", url),
+
   // dev diagnostic channel (reliable — bypasses console-message forwarding)
   diag: (m) => ipcRenderer.send("diag", String(m))
 });

@@ -8,6 +8,12 @@ const $ = (id) => document.getElementById(id);
 const api = window.minima;
 D("boot: api=" + (api ? "present" : "MISSING"));
 
+// ---- theme: default DARK (the high-tech look) unless the user chose light; persisted ----
+function applyTheme(t) { document.documentElement.setAttribute("data-theme", t); }
+let THEME; try { THEME = localStorage.getItem("md-theme") || "dark"; } catch (e) { THEME = "dark"; }
+applyTheme(THEME);
+function toggleTheme() { THEME = THEME === "dark" ? "light" : "dark"; try { localStorage.setItem("md-theme", THEME); } catch (e) {} applyTheme(THEME); }
+
 let PORTS = { base: 0, rpc: 0, mds: 0 };
 let DAPPS = [];                                     // from mds action:list (+ synthetic native tools)
 let TABS = [{ id: "home", kind: "home", name: "Home" }];
@@ -16,6 +22,7 @@ let FILTER = "";
 let ACTIVE_CAT = "all";
 let LAST_BLOCK = 0;
 let NODE_RUNNING = false;
+let HOME_MODE = "grid";        // "grid" | "carousel" — which face of Home is showing
 
 // ---- helpers ----
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
@@ -85,17 +92,29 @@ function appiconHTML(d) {
   const ic = iconUrl(d);
   const nativeSvg = d.nativeSvg ? `<span class="mark" style="z-index:2;position:relative;width:50%;height:50%">${d.nativeSvg}</span>` : "";
   const mono = d.nativeSvg ? "" : `<span class="mono-t">${esc(monogram(name))}</span>`;
+  // If the icon's data URL is already cached (the grid resolves them first), embed it directly so
+  // it paints immediately with no async round-trip; otherwise mark it for wireIcons to resolve.
+  let img = "";
+  if (ic) {
+    const cached = ICON_CACHE.get(ic);
+    if (cached) img = `<img class="ici" alt="" src="${esc(cached)}">`;
+    else if (cached !== "") img = `<img class="ici" alt="" data-src="${esc(ic)}">`;
+  }
   return `<div class="appicon" style="background:linear-gradient(150deg,${hue[0]},${hue[1]})">
-    <span class="sheen"></span>${mono}${nativeSvg}
-    ${ic ? `<img class="ici" alt="" data-src="${esc(ic)}">` : ""}
+    <span class="sheen"></span>${mono}${nativeSvg}${img}
   </div>`;
 }
-// after any innerHTML that contains .ici imgs, wire src + graceful fallback
+const ICON_CACHE = new Map();
+// after any innerHTML that contains .ici imgs, resolve each icon through the main-process proxy
+// (fetches the self-signed MDS icon and returns a data: URL — reliable, cached, no TLS races).
 function wireIcons(root) {
-  (root || document).querySelectorAll("img.ici[data-src]").forEach(img => {
+  (root || document).querySelectorAll("img.ici[data-src]").forEach((img) => {
     const src = img.getAttribute("data-src"); img.removeAttribute("data-src");
-    img.addEventListener("error", () => img.remove());
-    img.src = src;
+    if (ICON_CACHE.has(src)) { const d = ICON_CACHE.get(src); if (d) img.src = d; else img.remove(); return; }
+    api.iconData(src).then((durl) => {
+      ICON_CACHE.set(src, durl || "");
+      if (durl) img.src = durl; else img.remove();
+    }).catch(() => img.remove());
   });
 }
 
@@ -133,7 +152,10 @@ function switchTab(id) {
   const t = TABS.find(x => x.id === id);
   const kind = t ? t.kind : "home";
   // exactly one full-stage layer is shown; others display:none so none can eat clicks/scroll
-  $("home").style.display = kind === "home" ? "block" : "none";
+  const homeOn = kind === "home";
+  $("home").style.display = homeOn && HOME_MODE === "grid" ? "block" : "none";
+  $("carousel-view").classList.toggle("on", homeOn && HOME_MODE === "carousel");
+  if (homeOn && HOME_MODE === "carousel") startCarousel(); else stopCarousel();
   $("webviews").style.display = kind === "dapp" ? "block" : "none";
   $("logsview").style.display = kind === "logs" ? "flex" : "none";
   $("termview").style.display = kind === "terminal" ? "flex" : "none";
@@ -196,6 +218,34 @@ function recordRecent(uid) {
   try { localStorage.setItem(RECENT_KEY, JSON.stringify(r)); } catch (e) {}
 }
 
+// ---- pinned favourites (quick-launch dock in the rail) ----
+const PINS_KEY = "md-pins";
+function getPins() { try { return JSON.parse(localStorage.getItem(PINS_KEY) || "[]"); } catch (e) { return []; } }
+function isPinned(uid) { return getPins().includes(uid); }
+function togglePin(uid) {
+  let p = getPins();
+  p = p.includes(uid) ? p.filter(x => x !== uid) : p.concat(uid);
+  try { localStorage.setItem(PINS_KEY, JSON.stringify(p)); } catch (e) {}
+  renderPinned();
+  renderSections();   // refresh pin-button state on tiles
+  applyFilter();
+}
+function renderPinned() {
+  const host = $("pinned"), head = $("pinned-h");
+  const pins = getPins().map(uid => DAPPS.find(d => d.uid === uid)).filter(Boolean);
+  head.hidden = pins.length === 0;
+  host.innerHTML = "";
+  for (const d of pins) {
+    const el = document.createElement("div");
+    el.className = "pin";
+    el.innerHTML = `<span class="pin-ic">${appiconHTML(d)}</span><span class="pin-nm">${esc(dName(d))}</span>
+      <span class="pin-x" title="Unpin"><svg width="11" height="11" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"><path d="M5 5l14 14M19 5L5 19"/></svg></span>`;
+    el.addEventListener("click", (e) => { if (e.target.closest(".pin-x")) { e.stopPropagation(); togglePin(d.uid); return; } openDapp(d); });
+    host.appendChild(el);
+  }
+  wireIcons(host);
+}
+
 // ============ live launcher (from MDS) ============
 let DAPP_SIG = "";
 async function loadDapps() {
@@ -246,11 +296,13 @@ function allTiles() {
 
 function renderHome() {
   renderCats();
+  renderPinned();
   renderHero();
   renderContinue();
   renderSections();
   applyFilter();
   updateFoot();
+  if (typeof CX !== "undefined" && CX.open && CX.dapps.length !== DAPPS.length) buildCarousel();
 }
 
 // ---- rail categories ----
@@ -353,9 +405,9 @@ function renderSections() {
       const d = nat ? nativeTiles().find(x => x.native === nat) : tiles.find(x => x.uid === uid);
       if (!d) return;
       el.addEventListener("click", () => openDapp(d));
-      const op = el.querySelector(".op"); if (op) op.addEventListener("click", (e) => { e.stopPropagation(); openDapp(d); });
-      const rm = el.querySelector(".rm"); if (rm) rm.addEventListener("click", (e) => { e.stopPropagation(); uninstall(d); });
+      const pn = el.querySelector(".pn"); if (pn) pn.addEventListener("click", (e) => { e.stopPropagation(); togglePin(d.uid); });
       const tw = el.querySelector(".tw"); if (tw) tw.addEventListener("click", (e) => { e.stopPropagation(); toggleTrust(d); });
+      const rm = el.querySelector(".rm"); if (rm) rm.addEventListener("click", (e) => { e.stopPropagation(); uninstall(d); });
     });
   }
   wireIcons(host);
@@ -364,14 +416,21 @@ function renderSections() {
 function tileHTML(d) {
   const name = dName(d);
   const open = !d.native && TABS.some(t => t.kind === "dapp" && t.uid === d.uid);
-  const write = permsOf(d) === "write";
   const key = d.native ? `data-native="${esc(d.native)}"` : `data-uid="${esc(d.uid)}"`;
   const badge = open ? `<span class="badge run" title="Open in a tab"></span>` : "";
-  const acts = d.native ? `<div class="acts"><button class="op">Open</button></div>` : `
+  const pinned = !d.native && isPinned(d.uid);
+  const IC = {
+    pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6z" stroke-linejoin="round"/><path d="M12 15v5" stroke-linecap="round"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>',
+    unlock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 016.9-2.8" stroke-linecap="round"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M7 7l1 12a1 1 0 001 1h6a1 1 0 001-1l1-12"/></svg>'
+  };
+  const write = !d.native && permsOf(d) === "write";
+  const acts = d.native ? "" : `
     <div class="acts">
-      <button class="op">Open</button>
-      <button class="tw w ${write ? "on" : ""}">${write ? "Write" : "Read"}</button>
-      <button class="rm">Remove</button>
+      <button class="ib pn ${pinned ? "on" : ""}" title="${pinned ? "Unpin from sidebar" : "Pin to sidebar"}">${IC.pin}</button>
+      <button class="ib tw ${write ? "on" : ""}" title="${write ? "Write access · click for read-only" : "Read-only · click to allow write"}">${write ? IC.unlock : IC.lock}</button>
+      <button class="ib rm" title="Uninstall">${IC.trash}</button>
     </div>`;
   return `<div class="tile" ${key}>
     ${badge}
@@ -639,6 +698,7 @@ function applyStatus(s) {
   if (running && blk > LAST_BLOCK) { if (LAST_BLOCK) heartbeat(); LAST_BLOCK = blk; }
 }
 function heartbeat() {
+  if (CX.open) cxSpark();
   const tick = $("hero-block").querySelector(".tick");
   if (tick && tick.animate) tick.animate([{ filter: "brightness(2)" }, { filter: "brightness(1)" }], { duration: 900, easing: "ease-out" });
   const cascade = $("cascade");
@@ -679,7 +739,8 @@ document.addEventListener("click", (e) => {
   if (!e.target.closest("#nodepop") && !e.target.closest("#nodechip") && !e.target.closest("#nodecard")) $("nodepop").hidden = true;
 });
 $("pv-copy").addEventListener("click", async () => { if (MX_ADDR) { try { await navigator.clipboard.writeText(MX_ADDR); } catch (e) {} } });
-document.querySelectorAll(".tool").forEach(el => el.addEventListener("click", () => openNative(el.dataset.open)));
+document.querySelectorAll(".tool[data-open]").forEach(el => el.addEventListener("click", () => openNative(el.dataset.open)));
+$("optheme").addEventListener("click", toggleTheme);
 $("store-refresh").addEventListener("click", () => loadStore());
 
 // ---- Logs ----
@@ -717,13 +778,180 @@ $("term-input").addEventListener("keydown", async (e) => {
   else if (e.key === "ArrowDown") { if (TERM_IX < TERM_HIST.length) { TERM_IX++; inp.value = TERM_HIST[TERM_IX] || ""; } }
 });
 
+// ============ carousel view (cinematic launcher) ============
+const CX = { pos: 0, target: 0, vel: 0, cards: [], dapps: [], raf: 0, open: false, built: false,
+  dragging: false, dragStartX: 0, dragStartPos: 0, lastX: 0, lastT: 0, dragMoved: false,
+  tiltX: 0, tiltY: 0, tTiltX: 0, tTiltY: 0 };
+function cxGrad(name) { const h = hueFor(name); return `linear-gradient(145deg,${h[0]},${h[1]})`; }
+function cxGlow(name) { return hueFor(name)[0]; }
+
+function buildCarousel() {
+  const wrap = $("cx-carousel"); wrap.innerHTML = "";
+  CX.dapps = DAPPS.slice(); CX.cards = []; CX.built = true;
+  const dots = $("cx-dots"); dots.innerHTML = "";
+  if (!CX.dapps.length) { wrap.innerHTML = `<div class="cx-empty">No MiniDapps installed yet — install one to see it here.</div>`; return; }
+  CX.dapps.forEach((d) => {
+    const name = dName(d), cat = catName(catFor(name, dDesc(d))), glow = cxGlow(name);
+    const el = document.createElement("div"); el.className = "cx-card";
+    el.style.setProperty("--_grad", cxGrad(name)); el.style.setProperty("--_glow", glow);
+    el.innerHTML = `
+      <div class="glow" style="--_glow:${glow}"></div>
+      <div class="in">
+        <div class="art"><div class="halo" style="--_grad:${cxGrad(name)}"></div><div class="cxi">${appiconHTML(d)}</div><div class="sheen"></div></div>
+        <div class="meta">
+          <div class="cat">${esc(cat)}</div>
+          <h3>${esc(name)}</h3>
+          <p>${esc(dDesc(d) || "A MiniDapp on your Minima node.")}</p>
+          <div class="row">
+            <button class="open-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>Open</button>
+            <button class="pin-btn ${isPinned(d.uid) ? "pinned" : ""}" title="Pin / unpin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6z" stroke-linejoin="round"/><path d="M12 15v5" stroke-linecap="round"/></svg></button>
+          </div>
+        </div>
+      </div>`;
+    wrap.appendChild(el);
+    el.querySelector(".open-btn").addEventListener("click", (e) => { e.stopPropagation(); openDapp(d); });
+    el.querySelector(".pin-btn").addEventListener("click", (e) => { e.stopPropagation(); togglePin(d.uid); e.currentTarget.classList.toggle("pinned", isPinned(d.uid)); });
+    el.addEventListener("click", () => { if (CX.dragMoved) return; const idx = CX.dapps.indexOf(d); if (idx === Math.round(CX.pos)) openDapp(d); else cxGoto(idx); });
+    CX.cards.push(el);
+    const b = document.createElement("i"); b.addEventListener("click", () => cxGoto(CX.cards.length - 1)); dots.appendChild(b);
+  });
+  CX.pos = -1.2; CX.target = 0; CX.vel = 0;
+}
+function cxLayout() {
+  const N = CX.dapps.length; if (!N) return;
+  const focusIdx = Math.max(0, Math.min(N - 1, Math.round(CX.pos)));
+  for (let i = 0; i < N; i++) {
+    const off = i - CX.pos, a = Math.abs(off), el = CX.cards[i];
+    if (a > 3.2) { el.style.display = "none"; continue; }
+    el.style.display = "block";
+    const x = off * 195 * (a > 1 ? (1 + (a - 1) * 0.28) : 1);
+    const z = -Math.min(a, 3) * 240 - (a > 0 ? 60 : 0);
+    const rotY = Math.max(-52, Math.min(52, -off * 38));
+    const scale = Math.max(.55, 1 - a * 0.14);
+    const opacity = a > 2.6 ? 0 : Math.max(0, 1 - a * 0.30);
+    // NB: no per-frame blur() filter — it forces a GPU re-render every frame and tanks the fps
+    // ("awful physics"). Depth comes from scale + rotateY + opacity, which composite for free.
+    el.style.transform = `translate3d(${x}px,0,${z}px) rotateY(${rotY}deg) scale(${scale})`;
+    el.style.opacity = opacity; el.style.zIndex = 100 - Math.round(a * 10);
+    el.classList.toggle("focused", i === focusIdx && a < 0.5);
+    el.style.pointerEvents = a < 2 ? "auto" : "none";
+  }
+  [...$("cx-dots").children].forEach((c, i) => c.classList.toggle("on", i === focusIdx));
+  const fd = CX.dapps[focusIdx]; if (fd) $("cx-sub").textContent = `${catName(catFor(dName(fd), dDesc(fd)))} · drag, scroll, or use arrow keys to browse`;
+}
+function cxTick() {
+  if (!CX.open) return;
+  if (!CX.dragging) {
+    const k = 0.14, damp = 0.78, diff = CX.target - CX.pos;
+    CX.vel = CX.vel * damp + diff * k; CX.pos += CX.vel;
+    if (Math.abs(diff) < 0.0006 && Math.abs(CX.vel) < 0.0006) { CX.pos = CX.target; CX.vel = 0; }
+  }
+  cxApplyTilt(); cxLayout();
+  CX.raf = requestAnimationFrame(cxTick);
+}
+function cxGoto(i) { CX.target = Math.max(0, Math.min(CX.dapps.length - 1, i)); }
+function cxStep(dir) { cxGoto(Math.round(CX.target) + dir); }
+function cxApplyTilt() {
+  CX.tiltX += (CX.tTiltX - CX.tiltX) * 0.12; CX.tiltY += (CX.tTiltY - CX.tiltY) * 0.12;
+  const f = CX.cards[Math.round(CX.pos)]; if (!f) return;
+  const inner = f.querySelector(".in"); if (inner) inner.style.transform = `rotateY(${CX.tiltY}deg) rotateX(${CX.tiltX}deg)`;
+}
+function startCarousel() {
+  if (CX.open) return;
+  if (!CX.built || CX.dapps.length !== DAPPS.length) buildCarousel();
+  CX.open = true;
+  if (!CX.particlesDone) { cxParticles(); CX.particlesDone = true; }
+  cancelAnimationFrame(CX.raf); CX.raf = requestAnimationFrame(cxTick);
+}
+function stopCarousel() { CX.open = false; cancelAnimationFrame(CX.raf); }
+function setHomeMode(mode) {
+  HOME_MODE = mode;
+  document.querySelectorAll("#home-viewtoggle .vt-grid, #carousel-view .vt-grid").forEach(b => b.classList.toggle("on", mode === "grid"));
+  document.querySelectorAll("#home-viewtoggle .vt-carousel, #carousel-view .vt-carousel").forEach(b => b.classList.toggle("on", mode === "carousel"));
+  if (ACTIVE === "home") switchTab("home"); else switchTab("home");
+}
+
+// ---- carousel interactions ----
+(function wireCarousel() {
+  const car = $("cx-carousel"), cw = $("cx-wrap");
+  car.addEventListener("pointermove", (e) => {
+    const f = CX.cards[Math.round(CX.pos)]; if (!f) return;
+    const r = f.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const dx = (e.clientX - cx) / (r.width / 2), dy = (e.clientY - cy) / (r.height / 2);
+    if (Math.abs(dx) < 1.4 && Math.abs(dy) < 1.4) { CX.tTiltY = dx * 9; CX.tTiltX = -dy * 9; }
+  });
+  car.addEventListener("pointerleave", () => { CX.tTiltX = 0; CX.tTiltY = 0; });
+  car.addEventListener("pointerdown", (e) => {
+    CX.dragging = true; CX.dragMoved = false; CX.dragStartX = e.clientX; CX.lastX = e.clientX;
+    CX.lastT = performance.now(); CX.dragStartPos = CX.pos; CX.vel = 0;
+    try { car.setPointerCapture(e.pointerId); } catch (er) {}
+  });
+  car.addEventListener("pointermove", (e) => {
+    if (!CX.dragging) return;
+    const dx = e.clientX - CX.dragStartX; if (Math.abs(dx) > 4) CX.dragMoved = true;
+    CX.pos = Math.max(-0.4, Math.min(CX.dapps.length - 0.6, CX.dragStartPos - dx / 220));
+    const now = performance.now(); const inst = (e.clientX - CX.lastX) / Math.max(1, now - CX.lastT);
+    CX.vel = -inst * 0.9; CX.lastX = e.clientX; CX.lastT = now;
+  });
+  const endDrag = () => { if (!CX.dragging) return; CX.dragging = false; CX.target = Math.max(0, Math.min(CX.dapps.length - 1, Math.round(CX.pos + CX.vel * 8))); };
+  car.addEventListener("pointerup", endDrag); car.addEventListener("pointercancel", endDrag);
+  let wheelLock = 0;
+  cw.addEventListener("wheel", (e) => {
+    if (!CX.open) return;
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    e.preventDefault(); const now = performance.now();
+    if (now - wheelLock < 120) return;
+    if (Math.abs(d) > 8) { cxStep(d > 0 ? 1 : -1); wheelLock = now; }
+  }, { passive: false });
+  $("cx-prev").addEventListener("click", () => cxStep(-1));
+  $("cx-next").addEventListener("click", () => cxStep(1));
+})();
+addEventListener("keydown", (e) => {
+  if (!CX.open) return;
+  const t = document.activeElement; if (t && /^(INPUT|TEXTAREA)$/.test(t.tagName)) return;
+  if (e.key === "ArrowRight") { cxStep(1); e.preventDefault(); }
+  else if (e.key === "ArrowLeft") { cxStep(-1); e.preventDefault(); }
+  else if (e.key === "Enter") { const d = CX.dapps[Math.round(CX.target)]; if (d) openDapp(d); }
+  else if (e.key === "Home") cxGoto(0);
+  else if (e.key === "End") cxGoto(CX.dapps.length - 1);
+});
+document.querySelectorAll(".vt-carousel").forEach(b => b.addEventListener("click", () => setHomeMode("carousel")));
+document.querySelectorAll(".vt-grid").forEach(b => b.addEventListener("click", () => setHomeMode("grid")));
+
+// cascade spark on each new block while the carousel is open
+function cxSpark() {
+  const cas = $("cx-cascade"); if (!cas) return;
+  const h = cas.clientHeight, settleY = 40 + Math.random() * Math.max(60, h - 120);
+  const spark = document.createElement("div"); spark.className = "spark"; cas.appendChild(spark);
+  const start = performance.now(), dur = 680;
+  (function fall(t) {
+    const k = Math.min(1, (t - start) / dur), ease = 1 - Math.pow(1 - k, 2.2);
+    spark.style.top = (ease * settleY) + "px";
+    if (k < 1) requestAnimationFrame(fall);
+    else { spark.remove(); const node = document.createElement("div"); node.className = "node"; node.style.top = settleY + "px"; cas.appendChild(node);
+      CX._nodes = CX._nodes || []; CX._nodes.push(node);
+      if (CX._nodes.length > 14) { const old = CX._nodes.shift(); old.style.transition = "opacity .8s"; old.style.opacity = "0"; setTimeout(() => old.remove(), 800); } }
+  })(start);
+}
+function cxParticles() {
+  const box = $("cx-particles"); if (!box) return;
+  for (let i = 0; i < 24; i++) {
+    const p = document.createElement("i");
+    p.style.left = Math.random() * 100 + "%"; p.style.bottom = "-10px";
+    const s = 1 + Math.random() * 2.4; p.style.width = s + "px"; p.style.height = s + "px";
+    p.style.background = `radial-gradient(circle,${Math.random() < .5 ? "#FF512F" : "#317AFF"},transparent 70%)`;
+    p.style.animationDuration = (14 + Math.random() * 16) + "s"; p.style.animationDelay = (-Math.random() * 20) + "s";
+    box.appendChild(p);
+  }
+}
+
 api.onStatus((s) => applyStatus(s));
 
 (async function init() {
   renderTabs();
   switchTab("home");
   PORTS = await api.ports();
-  if (PORTS.appVersion) $("foot-ver").textContent = PORTS.appVersion;
+  if (PORTS.appVersion) { $("foot-ver").textContent = PORTS.appVersion; $("brand-ver").textContent = "v" + PORTS.appVersion; }
   applyStatus(await api.snapshot());
   renderCats(); renderHero(); renderSections(); applyFilter();
   let tries = 0;
