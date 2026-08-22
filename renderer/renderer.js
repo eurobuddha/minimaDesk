@@ -597,14 +597,15 @@ function renderStore() {
 }
 async function installFromStore(d, btn, msg) {
   if (!NODE_RUNNING) { msg.className = "smsg err"; msg.textContent = "node still starting — try again in a moment"; return; }
-  btn.disabled = true; const old = btn.textContent; btn.textContent = "Installing…";
+  const inst = installedByName(d.name);   // already installed → UPDATE in place (keeps uid + data), never duplicate
+  btn.disabled = true; const old = btn.textContent; btn.textContent = inst ? "Updating…" : "Installing…";
   msg.className = "smsg"; msg.textContent = "downloading…";
-  const res = await api.storeInstall(d.file);
+  const res = await api.storeInstall(d.file, inst ? inst.uid : null);
   if (res && res.status !== false) {
-    msg.className = "smsg ok"; msg.textContent = "installed ✓"; btn.textContent = "Reinstall"; btn.classList.add("ghost");
+    msg.className = "smsg ok"; msg.textContent = inst ? "updated ✓" : "installed ✓"; btn.textContent = "Reinstall"; btn.classList.add("ghost");
     DAPP_SIG = ""; await loadDapps(); await checkPending();
   } else {
-    msg.className = "smsg err"; msg.textContent = (res && res.error) || "install failed"; btn.textContent = old;
+    msg.className = "smsg err"; msg.textContent = (res && res.error) || (inst ? "update failed" : "install failed"); btn.textContent = old;
   }
   btn.disabled = false;
 }

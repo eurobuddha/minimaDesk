@@ -198,8 +198,10 @@ ipcMain.handle("store:fetch", async (_e, url) => {
   } catch (e) { return { status: false, error: e.message }; }
 });
 
-/** Download a .mds.zip by URL to a temp file, then install it through the node (trust:read). */
-ipcMain.handle("store:install", async (_e, fileUrl) => {
+/** Download a .mds.zip by URL to a temp file, then install OR update it through the node.
+ *  If `updateUid` is given, the dapp is UPDATED in place (`mds action:update`, same uid) — this
+ *  is what "Reinstall"/"Update" must do; a plain install always mints a new uid and duplicates. */
+ipcMain.handle("store:install", async (_e, fileUrl, updateUid) => {
   let tmp = "";
   try {
     const buf = await fetchBuffer(String(fileUrl));
@@ -207,8 +209,10 @@ ipcMain.handle("store:install", async (_e, fileUrl) => {
     const safe = (String(fileUrl).split("/").pop() || "dapp.mds.zip").replace(/[^A-Za-z0-9._-]/g, "_");
     tmp = path.join(os.tmpdir(), "mdesk-" + Date.now() + "-" + safe);
     fs.writeFileSync(tmp, buf);
-    const r = await rpcCall(config.rpcPort(), config.rpcSecret(), 'mds action:install file:"' + tmp + '"');
-    return r;
+    const cmd = updateUid && /^0x[0-9A-Fa-f]+$/.test(String(updateUid))
+      ? 'mds action:update uid:' + updateUid + ' file:"' + tmp + '"'
+      : 'mds action:install file:"' + tmp + '"';
+    return await rpcCall(config.rpcPort(), config.rpcSecret(), cmd);
   } catch (e) {
     return { status: false, error: e.message };
   } finally {
