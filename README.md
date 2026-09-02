@@ -16,20 +16,26 @@ MiniHub, in a party dress.
 cd desktop/minimaDesk
 ./scripts/fetch-jar.sh          # download the full classic minima.jar (has MDS + Maxima)
 npm install
-npm start                       # boots the node + opens the shell
+npm start                       # builds the renderer (Vite) then boots the node + opens the shell
+npm run dev                     # rebuild-on-change + electron (reload with Cmd+R)
 ```
 
 ## Build installers
 ```bash
-npm run dist:mac    # / dist:win / dist:linux  (electron-builder)
+npm run dist:mac    # / dist:win / dist:linux  (electron-builder; runs the renderer build first)
 ```
 
-## Status
-- **Phase 0 (done):** scaffold + boot the classic node with MDS + Maxima; verified
-  `mds action:list` (32 default dapps) and `maxima action:info` (live Mx address).
-- **Phase 1 (next):** the tabbed hub — launcher grid, install `.mds.zip`, open dapps
-  as tabs, node-status chrome, in the Minima 2024 design (`design/hub-mockup.html`).
-- **Phase 2 (optional):** reliable Maxima (store-and-forward for offline peers) as a
-  drop-in enhanced-jar swap.
+## How it is put together
+- `main/` — Electron main process: spawns the node (`node-manager.js`), proxies RPC with the secrets
+  injected (`main.js`, `rpc.js`), stores hub prefs + custom wallpaper in userData (`prefs.js`).
+- `renderer/src/hub/` — a **verbatim fork of the classic MiniHUB 0.24.4** (the "MinimaOS" home screen:
+  wallpaper, paged icon grid, folders, right-click menu, status bar, settings, install/update/delete).
+  It talks to the node through `mds-shim.ts` (a `window.MDS` over the preload bridge) and opens dapps
+  through `shell-bridge.ts`. Only the seams are edited; everything else is the stock source.
+- `renderer/src/shell/` — the container around the hub: tab strip with `<webview>` dapp tabs, node chip
+  + popover (full Maxima address, Heal Maxima), Terminal, Node logs, the native MiniDapp Store, and the
+  pending-permission prompt. Terminal / Node logs / MiniDapp Store also appear as tiles in the hub's
+  System folder.
+- `renderer/dist/` — Vite output loaded by Electron (gitignored; `npm run build`).
 
-Design language: `../../support/minima-mediakit/Minima_Website_2024_design_tokens.md`.
+Design language: the hub's own (Core Black `#08090B`, contrasts `#17191C` / `#282B2E`, Manrope).

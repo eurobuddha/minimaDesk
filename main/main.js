@@ -2,29 +2,57 @@
  * main.js — Electron main process for minimaDesk.
  *
  * Owns the window, the node lifecycle (node-manager), and the IPC proxy the renderer uses to reach the node.
- * The renderer NEVER sees the RPC/MDS secrets — it calls `mds:cmd` / `rpc:cmd` and main injects auth. MDS
- * MiniDapps are served by the node over HTTPS on the MDS port; we trust that one loopback self-signed cert.
+ * The renderer NEVER sees the RPC/MDS secrets — it calls `rpc:cmd` and main injects auth. MDS MiniDapps are
+ * served by the node over HTTPS on the MDS port; we trust that one loopback self-signed cert.
+ *
+ * The renderer is the Vite-built React app in renderer/dist (the classic MiniHUB home screen inside a
+ * tabbed shell). Dapps open in <webview> tabs; anything a dapp or the hub tries to `window.open` on the
+ * MDS host is turned into a tab via `shell:open-url`.
  */
-const { app, BrowserWindow, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell, net } = require("electron");
 const path = require("path");
+const fs = require("fs");
+const os = require("os");
+const https = require("https");
 const config = require("./config");
 const node = require("./node-manager");
+const prefs = require("./prefs");
 const { rpcCall } = require("./rpc");
 
+// Dev only: run from an isolated userData (own secrets, own single-instance lock, own config/port) so a
+// dev build can run next to the installed app. Set MDESK_USERDATA=<dir> (seed <dir>/config.json first).
+if (!app.isPackaged && process.env.MDESK_USERDATA) app.setPath("userData", process.env.MDESK_USERDATA);
+
 let win = null;
+const send = (ch, payload) => { if (win && !win.isDestroyed()) win.webContents.send(ch, payload); };
+
+// ---- window.open policy: MDS dapp URLs become tabs, https goes to the OS browser, file: to the OS ----
+function isLoopbackMdsUrl(url) {
+  try {
+    const u = new URL(url);
+    return (u.hostname === "127.0.0.1" || u.hostname === "localhost") && String(u.port) === String(config.mdsPort());
+  } catch (e) { return false; }
+}
+function windowOpenHandler({ url }) {
+  if (isLoopbackMdsUrl(url)) { send("shell:open-url", { url }); return { action: "deny" }; }
+  if (/^https?:\/\//i.test(url)) { shell.openExternal(url).catch(() => {}); }
+  else if (/^file:\/\//i.test(url)) { try { shell.openPath(decodeURIComponent(new URL(url).pathname)); } catch (e) {} }
+  return { action: "deny" };
+}
 
 function createWindow() {
   const cfg = config.load();
   win = new BrowserWindow({
     width: (cfg.window && cfg.window.w) || 1180,
     height: (cfg.window && cfg.window.h) || 780,
-    minWidth: 940,
+    // The hub's desktop layout (6-column grid, right-click menu geometry) starts at its lg breakpoint (976px).
+    minWidth: 1000,
     minHeight: 620,
     backgroundColor: "#08090B",          // Minima Core Black — no white flash on load
     title: "minimaDesk",
     // mac: native traffic lights over our own dark chrome (the tab strip fills the top).
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
-    trafficLightPosition: process.platform === "darwin" ? { x: 14, y: 18 } : undefined,
+    trafficLightPosition: process.platform === "darwin" ? { x: 14, y: 14 } : undefined,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -32,23 +60,17 @@ function createWindow() {
       webviewTag: true                   // MiniDapps render in <webview> tabs
     }
   });
-  win.loadFile(path.join(__dirname, "..", "renderer", "index.html"));
+  win.webContents.setWindowOpenHandler(windowOpenHandler);
+  if (!app.isPackaged && process.env.MDESK_DEV_URL) win.loadURL(process.env.MDESK_DEV_URL);
+  else win.loadFile(path.join(__dirname, "..", "renderer", "dist", "index.html"));
 
-  // Dev diagnostics: forward renderer console to the terminal (Electron 33 passes an event object).
+  // Dev diagnostics: forward renderer console to the terminal.
   if (!app.isPackaged) {
     win.webContents.on("console-message", (e) => {
       const m = (e && (e.message !== undefined ? e.message : arguments[2]));
       if (m !== undefined) console.log("[renderer]", m);
     });
     win.webContents.on("did-fail-load", (_e, code, desc, url) => console.log("[did-fail-load]", code, desc, url));
-    // capture console from dapp <webview>s too (their MDS.log / errors)
-    app.on("web-contents-created", (_e, contents) => {
-      try {
-        if (contents.getType && contents.getType() === "webview") {
-          contents.on("console-message", (ev, level, message) => console.log("[wv]", (ev && ev.message) || message || ""));
-        }
-      } catch (e) {}
-    });
     win.webContents.on("did-finish-load", () => console.log("[did-finish-load] renderer loaded"));
     win.webContents.on("preload-error", (_e, p, err) => console.log("[preload-error]", p, err && err.message));
     win.webContents.on("render-process-gone", (_e, d) => console.log("[render-gone]", d && d.reason));
@@ -59,43 +81,41 @@ function createWindow() {
         win.webContents.executeJavaScript(s.js).then(r => console.log("[seq]", r)).catch(e => console.log("[seq fail]", e.message));
       }, s.ms || 13000));
     }
-    if (process.env.MDESK_ASTEST) {
-      const { webContents } = require("electron");
-      setTimeout(() => win.webContents.executeJavaScript(
-        `(function(){var t=[...document.querySelectorAll('#sections .tile')].find(x=>/app store/i.test(x.textContent));if(t){t.click();return 'opened';}return 'no-tile';})()`
-      ).then(r => console.log("[astest] open:", r)), 13000);
-      setTimeout(async () => {
-        const wc = webContents.getAllWebContents().find(c => { try { return /127\.0\.0\.1:200/.test(c.getURL()); } catch (e) { return false; } });
-        if (!wc) { console.log("[astest] no webview"); return; }
-        // Run the App Store's OWN MDS calls in its page context (valid session, real space-free path)
-        const script = `(async()=>{
-          if(typeof MDS==='undefined') return 'NO_MDS';
-          const url='https://eurobuddha.com/panda_dapps/keyuses-0.1.51.mds.zip';
-          const dl=await new Promise(r=>MDS.file.download(url,res=>r(res)));
-          const path=(dl&&dl.response&&dl.response.download&&dl.response.download.path)||'';
-          if(!path) return 'DL_FAIL '+JSON.stringify(dl).slice(0,160);
-          const ins=await new Promise(r=>MDS.cmd('mds action:install file:'+path+' trust:read',res=>r(res)));
-          return 'path='+path+' || install='+JSON.stringify(ins).slice(0,240);
-        })()`;
-        wc.executeJavaScript(script).then(r => console.log("[astest] RESULT:", r)).catch(e => console.log("[astest] err:", e.message));
-      }, 22000);
+    if (process.env.MDESK_EXIT_MS) {
+      // MDESK_EXIT_MS = quit after N ms (dev verification runs; goes through the graceful node stop)
+      setTimeout(() => app.quit(), Number(process.env.MDESK_EXIT_MS));
     }
-    if (process.env.MDESK_SHOT) {
-      setTimeout(() => {
-        win.webContents.capturePage().then(img => {
-          try { require("fs").writeFileSync(process.env.MDESK_SHOT, img.toPNG()); console.log("[shot] saved"); }
-          catch (e) { console.log("[shot] fail", e.message); }
-        });
-      }, Number(process.env.MDESK_SHOT_MS) || 12000);
+    // MDESK_SHOT=<png> [+ MDESK_SHOT_MS], or MDESK_SHOTS="<png>@<ms>,<png>@<ms>,…" for a sequence
+    const shots = [];
+    if (process.env.MDESK_SHOT) shots.push({ file: process.env.MDESK_SHOT, ms: Number(process.env.MDESK_SHOT_MS) || 12000 });
+    for (const spec of String(process.env.MDESK_SHOTS || "").split(",").filter(Boolean)) {
+      const [file, ms] = spec.split("@"); shots.push({ file, ms: Number(ms) || 12000 });
     }
+    shots.forEach(({ file, ms }) => setTimeout(() => {
+      win.webContents.capturePage().then(img => {
+        try { fs.writeFileSync(file, img.toPNG()); console.log("[shot] saved", file); }
+        catch (e) { console.log("[shot] fail", e.message); }
+      });
+    }, ms));
   }
 
   // Push ONLY status to the renderer (low frequency). Node logs are NOT streamed —
   // Minima is extremely chatty and an IPC message per line froze the UI. The
   // renderer pulls the ring buffer via `node:logs` on demand instead.
-  const send = (ch, payload) => { if (win && !win.isDestroyed()) win.webContents.send(ch, payload); };
   node.on("status", s => send("node:status", s));
 }
+
+// Every <webview> guest: dapp-to-dapp window.open becomes a tab; capture console in dev.
+app.on("web-contents-created", (_e, contents) => {
+  try {
+    if (contents.getType && contents.getType() === "webview") {
+      contents.setWindowOpenHandler(windowOpenHandler);
+      if (!app.isPackaged) {
+        contents.on("console-message", (ev, level, message) => console.log("[wv]", (ev && ev.message) || message || ""));
+      }
+    }
+  } catch (e) {}
+});
 
 // Trust ONLY the node's own loopback MDS cert (self-signed). Everything else stays strict.
 function trustLoopbackMds() {
@@ -133,21 +153,28 @@ ipcMain.on("diag", (_e, m) => { if (!app.isPackaged) console.log("[R]", m); });
 ipcMain.handle("node:snapshot", () => node.snapshot());
 ipcMain.handle("node:logs", () => node.logs.slice(-300));
 ipcMain.handle("node:ports", () => ({ base: config.basePort(), rpc: config.rpcPort(), mds: config.mdsPort(), appVersion: app.getVersion() }));
+ipcMain.handle("node:stop", async (_e, compact) => { try { await node.stop({ compact: !!compact }); return { status: true }; } catch (e) { return { status: false, error: e.message }; } });
+ipcMain.handle("node:restart", async () => { try { await node.restart(); return { status: true }; } catch (e) { return { status: false, error: e.message }; } });
 
 /** Run any node command over RPC (management: mds action:list / install / uninstall, maxima, status…). */
 ipcMain.handle("rpc:cmd", async (_e, command) => {
-  try { return await rpcCall(config.rpcPort(), config.rpcSecret(), String(command)); }
-  catch (e) { return { status: false, error: e.message }; }
+  try {
+    const r = await rpcCall(config.rpcPort(), config.rpcSecret(), String(command));
+    // The `mds` reply carries the MDS password — a secret the renderer must never see.
+    if (r && r.response && typeof r.response === "object" && "password" in r.response && /^\s*mds\b/i.test(String(command))) {
+      delete r.response.password;
+    }
+    return r;
+  } catch (e) { return { status: false, error: e.message }; }
 });
 
-/** The MDS base URL a webview loads a dapp from: https://127.0.0.1:<mdsport>/<uid>/index.html?uid=<session>.
- *  The per-dapp uid+sessionid come from `mds action:list`; here we hand over host + port. */
+/** The MDS base a webview loads a dapp from: https://127.0.0.1:<mdsport>/<uid>/index.html?uid=<session>. */
 ipcMain.handle("mds:base", () => ({ host: "127.0.0.1", port: config.mdsPort() }));
 
 /** On-demand "Heal Maxima": reconnect the relay, re-pin static MLS, refresh contact addresses. */
 ipcMain.handle("maxima:heal", () => node.healMaxima());
 
-/** Pick a .mds.zip and install it (trust:read by default; user grants write via the permission prompt). */
+/** Pick a .mds.zip and install it (trust:read by default; user grants write via the hub / pending prompt). */
 ipcMain.handle("mds:install", async () => {
   const r = await dialog.showOpenDialog(win, {
     title: "Install a MiniDapp",
@@ -160,14 +187,56 @@ ipcMain.handle("mds:install", async () => {
   catch (e) { return { status: false, error: e.message }; }
 });
 
+// ---- hub prefs (keypair replacement) ----
+ipcMain.handle("prefs:get", (_e, key) => { try { return prefs.get(key); } catch (e) { return { status: false, error: e.message }; } });
+ipcMain.handle("prefs:set", (_e, key, value) => { try { return prefs.set(key, value); } catch (e) { return { status: false, error: e.message }; } });
+
+// ---- custom wallpaper: copy the picked image into userData and hand back a data URL ----
+const WALLPAPER_EXT = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", svg: "image/svg+xml", webp: "image/webp" };
+const WALLPAPER_MAX = 8 * 1024 * 1024;
+function wallpaperDir() { return path.join(app.getPath("userData"), "hub"); }
+function currentWallpaper() {
+  try {
+    const dir = wallpaperDir();
+    const f = fs.readdirSync(dir).find(n => /^custom_wallpaper\.[a-z0-9]+$/i.test(n));
+    if (!f) return { status: false };
+    const ext = f.split(".").pop().toLowerCase();
+    const buf = fs.readFileSync(path.join(dir, f));
+    return { status: true, fileName: f, dataUrl: "data:" + (WALLPAPER_EXT[ext] || "image/png") + ";base64," + buf.toString("base64") };
+  } catch (e) { return { status: false }; }
+}
+ipcMain.handle("wallpaper:get", () => currentWallpaper());
+ipcMain.handle("wallpaper:set", (_e, srcPath) => {
+  try {
+    const src = String(srcPath || "");
+    const ext = src.split(".").pop().toLowerCase();
+    if (!WALLPAPER_EXT[ext]) return { status: false, error: "unsupported image type" };
+    const st = fs.statSync(src);
+    if (st.size > WALLPAPER_MAX) return { status: false, error: "image larger than 8 MB" };
+    const dir = wallpaperDir();
+    fs.mkdirSync(dir, { recursive: true });
+    for (const n of fs.readdirSync(dir)) { if (/^custom_wallpaper\./i.test(n)) { try { fs.unlinkSync(path.join(dir, n)); } catch (e) {} } }
+    const fileName = "custom_wallpaper." + ext;
+    fs.copyFileSync(src, path.join(dir, fileName));
+    return currentWallpaper();
+  } catch (e) { return { status: false, error: e.message }; }
+});
+
+/** Open an https link in the OS browser, or a local file with its default app. */
+ipcMain.handle("shell:open", async (_e, url) => {
+  const u = String(url || "");
+  try {
+    if (/^https?:\/\//i.test(u)) { await shell.openExternal(u); return { status: true }; }
+    if (/^file:\/\//i.test(u)) { await shell.openPath(decodeURIComponent(new URL(u).pathname)); return { status: true }; }
+    return { status: false, error: "unsupported url" };
+  } catch (e) { return { status: false, error: e.message }; }
+});
+
 // ---- native MiniDapp Store: fetch a repo JSON, download + install through the node ----
 // The stock third-party "Dapp Store" MiniDapp points at the official /data/*.json paths,
-// which have moved and now 404. Instead of depending on that broken dapp, minimaDesk hosts
-// its own store: it fetches a repository descriptor ({name, dapps:[{name,file,icon,...}]}),
-// downloads the chosen .mds.zip, and installs it via the node's proven `mds action:install`.
-const { net } = require("electron");
-const os = require("os");
-const fs = require("fs");
+// which have moved and now 404. minimaDesk hosts its own store as well: it fetches a repository
+// descriptor ({name, dapps:[{name,file,icon,...}]}), downloads the chosen .mds.zip, and installs
+// it via the node's proven `mds action:install`.
 
 // GET a URL following redirects (GitHub release zips 302 to a CDN). Returns a Buffer.
 function fetchBuffer(url, redirects = 0) {
@@ -227,7 +296,6 @@ ipcMain.handle("store:install", async (_e, fileUrl, updateUid) => {
 // return it as a data: URL. Loading icons via <img src="https://127.0.0.1:mds/…"> in the
 // renderer fails the self-signed cert intermittently (TLS handshake errors); fetching in main
 // with rejectUnauthorized:false and handing back a data URL makes every icon resolve, cached. ----
-const https = require("https");
 const iconCache = new Map();
 function fetchLoopback(url) {
   return new Promise((resolve, reject) => {
@@ -242,12 +310,12 @@ function fetchLoopback(url) {
   });
 }
 function guessMime(u) {
-  const s = String(u).toLowerCase();
-  if (s.includes(".svg")) return "image/svg+xml";
-  if (s.includes(".jpg") || s.includes(".jpeg")) return "image/jpeg";
-  if (s.includes(".gif")) return "image/gif";
-  if (s.includes(".ico")) return "image/x-icon";
-  if (s.includes(".webp")) return "image/webp";
+  const s = String(u).toLowerCase().split("?")[0];
+  if (s.endsWith(".svg")) return "image/svg+xml";
+  if (s.endsWith(".jpg") || s.endsWith(".jpeg")) return "image/jpeg";
+  if (s.endsWith(".gif")) return "image/gif";
+  if (s.endsWith(".ico")) return "image/x-icon";
+  if (s.endsWith(".webp")) return "image/webp";
   return "image/png";
 }
 ipcMain.handle("mds:icon", async (_e, url) => {
@@ -257,7 +325,8 @@ ipcMain.handle("mds:icon", async (_e, url) => {
   try {
     const { buf, ct } = await fetchLoopback(u);
     if (!buf || !buf.length) return "";
-    const durl = "data:" + (ct || guessMime(u)) + ";base64," + buf.toString("base64");
+    const mime = ct && /^image\//.test(ct) ? ct : guessMime(u);
+    const durl = "data:" + mime + ";base64," + buf.toString("base64");
     if (iconCache.size > 500) iconCache.clear();
     iconCache.set(u, durl);
     return durl;

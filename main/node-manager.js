@@ -117,10 +117,12 @@ class NodeManager extends EventEmitter {
     this.startHealth();
   }
 
-  async stop() {
+  async stop(opts = {}) {
+    // `compact:true` asks the node to compact its databases on the way down (hub Settings → Shutdown node).
+    const quitCmd = opts && opts.compact ? "quit compact:true" : "quit";
     // Adopted node (no child process of ours): stop it over RPC so we don't orphan it.
     if (!this.proc) {
-      if (this.adopted) { try { await rpcCall(config.rpcPort(), config.rpcSecret(), "quit"); } catch (e) {} this.adopted = false; this.stopHealth(); }
+      if (this.adopted) { try { await rpcCall(config.rpcPort(), config.rpcSecret(), quitCmd); } catch (e) {} this.adopted = false; this.stopHealth(); }
       this.setState("stopped"); return;
     }
     this.setState("stopping");
@@ -130,7 +132,7 @@ class NodeManager extends EventEmitter {
       const t2 = setTimeout(() => { try { this.proc && this.proc.kill("SIGKILL"); } catch (e) {} }, 25_000);
       const iv = setInterval(() => { if (!this.proc) { clearTimeout(t); clearTimeout(t2); clearInterval(iv); res(); } }, 300);
     });
-    try { await rpcCall(config.rpcPort(), config.rpcSecret(), "quit"); } catch (e) { /* signals will catch it */ }
+    try { await rpcCall(config.rpcPort(), config.rpcSecret(), quitCmd); } catch (e) { /* signals will catch it */ }
     await gone;
   }
   async restart() { await this.stop(); this.start(); }

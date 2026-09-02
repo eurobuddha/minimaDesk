@@ -1,0 +1,226 @@
+/*
+ * shell.css — the container chrome around the classic MiniHUB: tab strip, node chip, stage layers, views.
+ * Palette is the hub's own (#08090B / #17191C / #282B2E, greys, status green/red). No orange, no blue.
+ */
+@font-face {
+  font-family: 'Manrope';
+  src: url('/fonts/Manrope-variable.woff2') format('woff2-variations'), url('/fonts/Manrope-variable.woff2') format('woff2');
+  font-weight: 200 800;
+  font-display: swap;
+}
+
+#root { height: 100%; min-height: 0; }
+
+.shell {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Manrope', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  color: #e9e9eb;
+}
+
+/* ---- title bar / tab strip ---- */
+.titlebar {
+  position: relative;
+  z-index: 1500;
+  height: 44px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  background: #08090b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  -webkit-app-region: drag;
+  font-size: 12.5px;
+  user-select: none;
+}
+.titlebar .macgap { width: 64px; flex: none; }
+.titlebar .nodrag, .titlebar button, .titlebar .tab { -webkit-app-region: no-drag; }
+
+.tabs { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; flex: 1 1 auto; }
+.tab {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 10px;
+  border-radius: 8px;
+  color: #91919d;
+  white-space: nowrap;
+  max-width: 220px;
+  min-width: 0;
+  cursor: default;
+  box-shadow: inset 0 0 0 1px transparent;
+  transition: background 0.15s, color 0.15s;
+}
+.tab:hover { background: rgba(255, 255, 255, 0.05); color: #e9e9eb; }
+.tab.active { background: #17191c; color: #e9e9eb; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2); }
+.tab .ttl { overflow: hidden; text-overflow: ellipsis; }
+.tab .ico { width: 16px; height: 16px; border-radius: 4px; flex: none; object-fit: cover; background: #282b2e; display: block; }
+.tab .mono {
+  width: 16px; height: 16px; border-radius: 4px; flex: none; display: flex; align-items: center; justify-content: center;
+  background: #282b2e; color: #f9f9fa; font-size: 9px; font-weight: 800;
+}
+.tab .x {
+  width: 18px; height: 18px; border-radius: 5px; border: 0; background: transparent; color: #91919d; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; padding: 0; flex: none; margin-left: 2px;
+}
+.tab .x:hover { background: rgba(255, 255, 255, 0.1); color: #f9f9fa; }
+.tab.home .ico-home { width: 16px; height: 14px; flex: none; }
+
+.tool {
+  width: 30px; height: 30px; border-radius: 8px; border: 0; background: transparent; color: #a7a7b0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; padding: 0; flex: none;
+  transition: background 0.15s, color 0.15s;
+}
+.tool:hover { background: rgba(255, 255, 255, 0.06); color: #f9f9fa; }
+.tool.active { background: #17191c; color: #f9f9fa; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2); }
+.tool.add { font-size: 18px; line-height: 1; }
+
+.titlebar .spacer { flex: 0 0 8px; }
+
+/* ---- node chip ---- */
+.nodechip {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  background: #17191c;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  color: #e9e9eb;
+  cursor: pointer;
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.nodechip:hover { background: #1d2023; }
+.nodechip .dot { width: 8px; height: 8px; border-radius: 50%; background: #464c4f; flex: none; }
+.nodechip .dot.on { background: #4fe3c1; box-shadow: 0 0 0 3px rgba(79, 227, 193, 0.18); }
+.nodechip .dot.err { background: #ff627e; box-shadow: 0 0 0 3px rgba(255, 98, 126, 0.18); }
+.nodechip .dot.busy { background: #a7a7b0; animation: shell-pulse 1.2s ease-in-out infinite; }
+.nodechip .sep { color: #464c4f; font-weight: 500; }
+.nodechip .dim { color: #91919d; font-weight: 500; }
+@keyframes shell-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+/* ---- node popover ---- */
+.popover {
+  position: absolute;
+  top: 44px;
+  right: 10px;
+  width: 360px;
+  background: #282b2e;
+  border-radius: 8px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  padding: 8px;
+  font-size: 13px;
+  -webkit-app-region: no-drag;
+  color: #e9e9eb;
+}
+.popover .rows { background: #17191c; border-radius: 6px; overflow: hidden; }
+.popover .row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+.popover .row:last-child { border-bottom: 0; }
+.popover .row .k { color: #91919d; }
+.popover .row .v { color: #f9f9fa; font-variant-numeric: tabular-nums; text-align: right; }
+.popover .row .v.ok { color: #4fe3c1; }
+.popover .row .v.bad { color: #ff627e; }
+.popover .addr { margin-top: 8px; }
+.popover .addr .val {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; line-height: 1.5;
+  word-break: break-all; color: #d3d3d8;
+}
+.popover .heal { margin-top: 8px; }
+.popover .heal .msg { margin-top: 8px; font-size: 12px; color: #a7a7b0; min-height: 16px; }
+.popover .heal .msg.ok { color: #4fe3c1; }
+.popover .heal .msg.err { color: #ff627e; }
+.popover .foot { margin-top: 8px; padding: 0 4px; font-size: 11px; color: #91919d; display: flex; justify-content: space-between; }
+
+/* ---- stage layers ---- */
+.stage { flex: 1 1 auto; position: relative; min-height: 0; }
+.stage-layer { position: absolute; inset: 0; }
+/* the hub lives here: contain:paint keeps its `fixed` modals/toasts and the StatusBar cluster inside the stage */
+.stage-home { position: relative; contain: paint; overflow: hidden; }
+.stage-home .app { width: 100% !important; height: 100% !important; }
+.stage-home .dashboard { height: 100% !important; }
+.stage-home .bg { min-height: 0 !important; height: 100%; }
+.stage-webviews { background: #08090b; }
+.stage-webviews webview { position: absolute; inset: 0; width: 100%; height: 100%; background: #fff; }
+.stage-webviews webview.hidden { display: none; }
+.stage-view { background: #08090b; display: flex; flex-direction: column; min-height: 0; }
+
+/* ---- views (terminal / logs / store) ---- */
+.view-head {
+  flex: none; display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: #08090b;
+}
+.view-head h2 { font-size: 15px; font-weight: 700; margin: 0; color: #f9f9fa; }
+.view-head .hint { color: #91919d; font-size: 12px; }
+.view-head .grow { flex: 1 1 auto; }
+.view-head label { display: flex; align-items: center; gap: 8px; color: #a7a7b0; font-size: 12.5px; }
+.view-head .btn {
+  height: 30px; padding: 0 12px; border-radius: 6px; border: 0; background: #282b2e; color: #e9e9eb; cursor: pointer;
+  font-family: inherit; font-size: 12.5px; font-weight: 600;
+}
+.view-head .btn:hover { background: #33373b; }
+.view-head select {
+  height: 30px; padding: 0 10px; border-radius: 6px; border: 2px solid #464c4f; background: #08090b; color: #e9e9eb;
+  font-family: inherit; font-size: 12.5px; outline: none;
+}
+.view-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+.term-out { padding: 12px 16px; font-size: 12.5px; line-height: 1.5; color: #d3d3d8; }
+.term-out .cmd { color: #f9f9fa; font-weight: 700; margin-top: 10px; }
+.term-out .cmd::before { content: '› '; color: #4fe3c1; }
+.term-out .out { white-space: pre-wrap; word-break: break-all; color: #bdbdc4; }
+.term-out .out.err { color: #ff627e; }
+.term-out .out.running { color: #91919d; }
+.term-in {
+  flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: #08090b;
+}
+.term-in .prompt { color: #4fe3c1; font-weight: 800; }
+.term-in input {
+  flex: 1 1 auto; height: 34px; padding: 0 10px; border-radius: 6px; border: 2px solid #464c4f; background: #08090b;
+  color: #f9f9fa; outline: none; font-size: 13px;
+}
+.term-in input:focus { border-color: #a7a7b0; }
+
+.logs-pre { margin: 0; padding: 12px 16px; font-size: 11.5px; line-height: 1.45; color: #bdbdc4; white-space: pre-wrap; word-break: break-all; }
+
+.store-body { padding: 16px; }
+.store-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; color: #a7a7b0; font-size: 13px; }
+.store-head img { width: 36px; height: 36px; border-radius: 8px; background: #282b2e; }
+.store-head .nm { color: #f9f9fa; font-weight: 700; font-size: 15px; }
+.store-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.scard { background: #17191c; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+.scard .top { display: flex; gap: 12px; align-items: center; }
+.scard img, .scard .mono-i { width: 48px; height: 48px; border-radius: 10px; background: #282b2e; flex: none; object-fit: cover; }
+.scard .mono-i { display: flex; align-items: center; justify-content: center; font-weight: 800; color: #f9f9fa; font-size: 18px; }
+.scard .nm { color: #f9f9fa; font-weight: 700; font-size: 14px; }
+.scard .ver { color: #91919d; font-size: 12px; }
+.scard .desc { color: #a7a7b0; font-size: 12.5px; line-height: 1.45; flex: 1 1 auto; }
+.scard .acts { display: flex; align-items: center; gap: 10px; }
+.scard .smsg { font-size: 12px; color: #91919d; }
+.scard .smsg.ok { color: #4fe3c1; }
+.scard .smsg.err { color: #ff627e; }
+.scard .btn {
+  height: 32px; padding: 0 14px; border-radius: 6px; border: 0; cursor: pointer; font-family: inherit; font-size: 12.5px; font-weight: 700;
+  background: #f9f9fa; color: #08090b;
+}
+.scard .btn.ghost { background: #282b2e; color: #e9e9eb; }
+.scard .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.store-empty { color: #91919d; padding: 40px 0; text-align: center; }
+
+/* ---- pending prompt ---- */
+.pending-cmd {
+  display: block; margin: 12px 0 16px; padding: 10px 12px; border-radius: 6px; background: #17191c;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; line-height: 1.5;
+  color: #d3d3d8; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow: auto;
+}

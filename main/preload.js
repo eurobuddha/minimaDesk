@@ -2,34 +2,62 @@
  * preload.js — the ONLY bridge between the renderer and the node. Exposes a tiny, safe surface over IPC;
  * the renderer never sees the RPC/MDS secrets (main injects auth). contextIsolation is on.
  */
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, webUtils } = require("electron");
+
+const invoke = (channel, ...args) => ipcRenderer.invoke(channel, ...args);
+// Subscribe to a push channel; returns an unsubscribe (React effects re-run under StrictMode).
+const subscribe = (channel, cb) => {
+  const handler = (_e, payload) => cb(payload);
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+};
 
 contextBridge.exposeInMainWorld("minima", {
+  platform: process.platform,
+
   // node lifecycle / status
-  snapshot: () => ipcRenderer.invoke("node:snapshot"),
-  logs: () => ipcRenderer.invoke("node:logs"),
-  ports: () => ipcRenderer.invoke("node:ports"),
-  onStatus: (cb) => ipcRenderer.on("node:status", (_e, s) => cb(s)),
-  onLog: (cb) => ipcRenderer.on("node:log", (_e, l) => cb(l)),
+  snapshot: () => invoke("node:snapshot"),
+  logs: () => invoke("node:logs"),
+  ports: () => invoke("node:ports"),
+  onStatus: (cb) => subscribe("node:status", cb),
+  nodeStop: (compact) => invoke("node:stop", !!compact),
+  nodeRestart: () => invoke("node:restart"),
 
-  // node command proxy (management: `mds action:list`, `mds action:install file:…`, `maxima …`, `status`)
-  cmd: (command) => ipcRenderer.invoke("rpc:cmd", command),
+  // node command proxy (any RPC command; auth injected in main)
+  cmd: (command) => invoke("rpc:cmd", command),
 
-  // where MDS serves dapps (host + port); the renderer builds the per-dapp URL
-  mdsBase: () => ipcRenderer.invoke("mds:base"),
+  // MDS host for dapp URLs / icons
+  mdsBase: () => invoke("mds:base"),
 
-  // pick a .mds.zip and install it (opens the native file dialog in main)
-  install: () => ipcRenderer.invoke("mds:install"),
+  // pick a .mds.zip and install it (native file dialog in main)
+  install: () => invoke("mds:install"),
 
-  // native store: fetch a repo JSON, and download+install a dapp by its file URL
-  storeFetch: (url) => ipcRenderer.invoke("store:fetch", url),
-  storeInstall: (fileUrl) => ipcRenderer.invoke("store:install", fileUrl),
+  // native store: fetch a repo JSON, and download + install/update a dapp by its file URL
+  storeFetch: (url) => invoke("store:fetch", url),
+  storeInstall: (fileUrl, updateUid) => invoke("store:install", fileUrl, updateUid || null),
 
   // fetch an MDS icon as a data URL (reliable — bypasses self-signed cert img loads)
-  iconData: (url) => ipcRenderer.invoke("mds:icon", url),
+  iconData: (url) => invoke("mds:icon", url),
 
   // on-demand Maxima heal (reconnect relay + re-pin MLS + refresh contacts)
-  healMaxima: () => ipcRenderer.invoke("maxima:heal"),
+  healMaxima: () => invoke("maxima:heal"),
+
+  // dapps opened from inside a webview / the hub land here as "open a tab"
+  onOpenUrl: (cb) => subscribe("shell:open-url", cb),
+
+  // hub preferences (replaces the MiniHUB's MDS.keypair store)
+  prefsGet: (key) => invoke("prefs:get", key),
+  prefsSet: (key, value) => invoke("prefs:set", key, value),
+
+  // absolute path of a File picked with <input type=file> (Electron 33: File.path is gone)
+  pathForFile: (file) => webUtils.getPathForFile(file),
+
+  // custom wallpaper (copied into userData; returned as a data URL)
+  wallpaperSet: (srcPath) => invoke("wallpaper:set", srcPath),
+  wallpaperGet: () => invoke("wallpaper:get"),
+
+  // open an https link / local file with the OS
+  openExternal: (url) => invoke("shell:open", url),
 
   // dev diagnostic channel (reliable — bypasses console-message forwarding)
   diag: (m) => ipcRenderer.send("diag", String(m))
