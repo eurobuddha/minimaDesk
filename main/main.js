@@ -19,6 +19,7 @@ const node = require("./node-manager");
 const prefs = require("./prefs");
 const { rpcCall } = require("./rpc");
 const { fetchBuffer } = require("./net");
+const { KNOWN_RELAYS } = require("./relays");
 
 // Dev only: run from an isolated userData (own secrets, own single-instance lock, own config/port) so a
 // dev build can run next to the installed app. Set MDESK_USERDATA=<dir> (seed <dir>/config.json first).
@@ -174,6 +175,16 @@ ipcMain.handle("mds:base", () => ({ host: "127.0.0.1", port: config.mdsPort() })
 
 /** On-demand "Heal Maxima": reconnect the relay, re-pin static MLS, refresh contact addresses. */
 ipcMain.handle("maxima:heal", () => node.healMaxima());
+
+// ---- Settings → Network: contribute (server role + port mapping), Maxima relay, static MLS ----
+ipcMain.handle("net:config", () => {
+  const cfg = config.load();
+  return { contribute: !!cfg.contribute, maximaRelay: node.snapshot().maximaRelay,
+           mls: cfg.mls || { mode: "relay", custom: "" }, knownRelays: KNOWN_RELAYS, basePort: config.basePort() };
+});
+ipcMain.handle("net:setContribute", async (_e, on) => { try { return await node.setContribute(!!on); } catch (e) { return { status: false, error: e.message }; } });
+ipcMain.handle("net:setMaximaRelay", async (_e, host) => { try { return await node.setMaximaRelay(host); } catch (e) { return { status: false, error: e.message }; } });
+ipcMain.handle("net:setMls", async (_e, mode, custom) => { try { return await node.setMls(mode, custom); } catch (e) { return { status: false, error: e.message }; } });
 
 /** Pick a .mds.zip and install it (trust:read by default; user grants write via the hub / pending prompt). */
 ipcMain.handle("mds:install", async () => {

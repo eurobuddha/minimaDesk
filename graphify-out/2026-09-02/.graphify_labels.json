@@ -1,11 +1,23 @@
 {
   "0": "NodeManager",
-  "1": "node-manager.js",
-  "2": "build",
-  "3": "linux",
+  "1": "Settings/index.tsx",
+  "2": "package.json",
+  "3": "AppContext.tsx",
   "4": "config.js",
-  "5": "package.json",
+  "5": "devDependencies",
   "6": "main.js",
+  "7": "ShellContext.tsx",
+  "8": "lib/index.ts",
+  "9": "MinimaBridge",
+  "10": "compilerOptions",
+  "11": "utilities/index.ts",
+  "12": "MaximaProfile/index.tsx",
+  "13": "minimaDesk",
   "14": "preload.js",
-  "15": "fetch-jar.sh"
+  "15": "fetch-jar.sh",
+  "16": "postcss.config.js",
+  "17": "CaretDown/index.tsx",
+  "18": "vite-env.d.ts",
+  "19": "tailwind.config.js",
+  "20": "vite.config.ts"
 }

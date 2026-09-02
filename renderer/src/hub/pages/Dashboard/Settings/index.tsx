@@ -5,6 +5,7 @@ import ShutdownNode from './ShutdownNode';
 import { appContext } from '../../../AppContext';
 import FullScreen from '../../../components/UI/FullScreen';
 import MinimaDesk from './MinimaDesk';
+import Network from './Network';
 import { useNavigate } from 'react-router-dom';
 import ShareConnections from './ShareConnections';
 import Folders from './Folders';
@@ -28,6 +29,7 @@ export function Settings() {
   const [showShutdown, setShutdown] = useState(false);
   const [showWallpaper, setShowWallpaper] = useState(false);
   const [showMinimaDesk, setShowMinimaDesk] = useState(false);
+  const [showNetwork, setShowNetwork] = useState(false);
   const [showShareConnections, setShowShareConnections] = useState(false);
   const [showShareConnectionsNav, setShowShareConnectionsNav] = useState(false);
 
@@ -48,6 +50,7 @@ export function Settings() {
     navigate('/');
     setShowSettings(false);
     setShowMinimaDesk(false);
+    setShowNetwork(false);
     setShowAddConnections(false);
     setShowWallpaper(false);
     setShowShareConnections(false);
@@ -59,6 +62,7 @@ export function Settings() {
       <Wallpaper display={showWallpaper} dismiss={() => setShowWallpaper(false)} />
       <PeerList display={showAddConnections} dismiss={() => setShowAddConnections(false)} />
       <MinimaDesk display={showMinimaDesk} dismiss={() => setShowMinimaDesk(false)} />
+      <Network display={showNetwork} dismiss={() => setShowNetwork(false)} />
       <ShareConnections display={showShareConnections} dismiss={() => setShowShareConnections(false)} />
       <TermsAndConditions display={showTermsAndConditions} dismiss={() => setShowTermsAndConditions(false)} />
 
@@ -142,6 +146,25 @@ export function Settings() {
                 </MenuButton>
               </div>
               Wallpaper
+              <div className="absolute right-0 top-0 h-full px-5 flex items-center">
+                <svg className="text-grey80" width="8" height="12" viewBox="0 0 8 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M7.04984 5.99995L1.37504 11.6501L0.500244 10.7501L5.24984 5.99995L0.500244 1.24975L1.40024 0.349747L7.04984 5.99995Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </div>
+            </div>
+            <div
+              onClick={() => setShowNetwork(true)}
+              className="relative bg-contrast1 p-3 rounded cursor-pointer flex items-center gap-4"
+            >
+              <MenuButton>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a14 14 0 0 1 0 18" /><path d="M12 3a14 14 0 0 0 0 18" />
+                </svg>
+              </MenuButton>
+              Network
               <div className="absolute right-0 top-0 h-full px-5 flex items-center">
                 <svg className="text-grey80" width="8" height="12" viewBox="0 0 8 12" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path

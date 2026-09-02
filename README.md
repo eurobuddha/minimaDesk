@@ -36,6 +36,10 @@ npm run dist:mac    # / dist:win / dist:linux  (electron-builder; runs the rende
   + popover (full Maxima address, Heal Maxima), Node logs, and the pending-permission prompt. The Store
   and Terminal buttons open the bundled **minimaCore App Store** (PandaDapps) and **Terminal IDE**
   MiniDapps as tabs; both also appear as tiles in the hub's System folder.
+- **Settings → Network** — "Contribute to the network" (the node's `-server` role + UPnP/NAT-PMP port
+  mapping via `main/portmap.js`, lifted from minimaCore Desktop; reachability is only ever claimed from
+  a real incoming peer, with a manual-forward how-to when the router won't play), the Maxima relay to
+  attach to (`main/relays.js`), and the static-MLS policy (pin the relay / custom / host's directory).
 - `resources/dapps/` — the bundled MiniDapps + `manifest.json`. `main/provision.js` installs them on
   first boot, updates them in place when the bundled or PandaDapps-catalog version is newer, and gives
   them write permission. Refresh the bundle with `scripts/sync-bundled-dapps.sh` before a release.

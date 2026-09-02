@@ -19,7 +19,9 @@ const DEFAULTS = {
   basePort: 20001,
   dataFolder: "",        // -data (empty → default under userData/minima-data)
   extraArgs: "",         // additional raw jar args, appended verbatim
-  contribute: true,      // run as a full reachable node (UPnP/accept-inbound) — the node forwards its own port
+  contribute: false,     // "Contribute to the network": -server role + UPnP/NAT-PMP port mapping (Settings → Network)
+  maximaRelay: "",       // the ONE Maxima relay to attach to (host:port); "" → the default fleet relay
+  mls: { mode: "relay", custom: "" },   // static MLS policy: relay (pin the attached relay) | custom (Mx…@host:port) | host (rotating)
   window: { w: 1180, h: 780 }
 };
 

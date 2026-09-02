@@ -38,6 +38,12 @@ contextBridge.exposeInMainWorld("minima", {
   // on-demand Maxima heal (reconnect relay + re-pin MLS + refresh contacts)
   healMaxima: () => invoke("maxima:heal"),
 
+  // Settings → Network
+  netConfig: () => invoke("net:config"),
+  netSetContribute: (on) => invoke("net:setContribute", !!on),
+  netSetMaximaRelay: (host) => invoke("net:setMaximaRelay", host),
+  netSetMls: (mode, custom) => invoke("net:setMls", mode, custom || ""),
+
   // dapps opened from inside a webview / the hub land here as "open a tab"
   onOpenUrl: (cb) => subscribe("shell:open-url", cb),
 

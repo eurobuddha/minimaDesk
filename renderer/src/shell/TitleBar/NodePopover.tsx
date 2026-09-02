@@ -49,6 +49,8 @@ export default function NodePopover({ onClose: _onClose }: { onClose: () => void
         <div className="row"><span className="k">Block</span><span className="v">{h ? Number(h.block || 0).toLocaleString('en-US') : '—'}</span></div>
         <div className="row"><span className="k">Connections</span><span className="v">{h ? h.connections : '—'}</span></div>
         <div className="row"><span className="k">Maxima</span><span className={`v ${h && h.maxima ? 'ok' : ''}`}>{h ? (h.maxima ? 'online' : 'offline') : '—'}</span></div>
+        <div className="row"><span className="k">Role</span><span className="v">{status ? (status.contribute ? 'contributing (accepts inbound)' : 'light node (outbound only)') : '—'}</span></div>
+        {status && status.contribute && <div className="row"><span className="k">Inbound</span><span className={`v ${h && (h.incoming || 0) > 0 ? 'ok' : ''}`}>{h && (h.incoming || 0) > 0 ? `reachable — ${h.incoming} incoming` : (status.portmap ? status.portmap.state.replace('_', ' ') : '—')}</span></div>}
         <div className="row"><span className="k">Wallet</span><span className={`v ${h && h.locked ? 'ok' : ''}`}>{h ? (h.locked ? 'locked' : 'unlocked') : '—'}</span></div>
         <div className="row"><span className="k">Ports</span><span className="v">{ports ? `p2p ${ports.base} · mds ${ports.mds} · rpc ${ports.rpc}` : '—'}</span></div>
         <div className="row"><span className="k">Uptime</span><span className="v">{status ? fmtUptime(status.uptimeMs) : '—'}</span></div>
