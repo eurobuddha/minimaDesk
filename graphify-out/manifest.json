@@ -1,0 +1,42 @@
+{
+  "main/config.js": {
+    "mtime": 1787359026.1048362,
+    "ast_hash": "85b222136e888f3307d28538268a88b6",
+    "semantic_hash": "85b222136e888f3307d28538268a88b6"
+  },
+  "main/main.js": {
+    "mtime": 1787423712.3954062,
+    "ast_hash": "ce6f7a1507b289221278111e1be47c09",
+    "semantic_hash": "ce6f7a1507b289221278111e1be47c09"
+  },
+  "main/node-manager.js": {
+    "mtime": 1787423701.8577201,
+    "ast_hash": "7e4c21810fde91becea1b94147eaf06f",
+    "semantic_hash": "7e4c21810fde91becea1b94147eaf06f"
+  },
+  "main/preload.js": {
+    "mtime": 1787423721.0233433,
+    "ast_hash": "fc13ae56fe4f924d343a90da87fa9541",
+    "semantic_hash": "fc13ae56fe4f924d343a90da87fa9541"
+  },
+  "main/rpc.js": {
+    "mtime": 1787347232.8150804,
+    "ast_hash": "49285f74af126b134aad3152cab1829d",
+    "semantic_hash": "49285f74af126b134aad3152cab1829d"
+  },
+  "package.json": {
+    "mtime": 1787423787.043122,
+    "ast_hash": "d79b285795083a8183f7df3c9e4c4faa",
+    "semantic_hash": "d79b285795083a8183f7df3c9e4c4faa"
+  },
+  "renderer/renderer.js": {
+    "mtime": 1787423751.4206305,
+    "ast_hash": "388e6c3692308714ba98586ecc38740e",
+    "semantic_hash": "388e6c3692308714ba98586ecc38740e"
+  },
+  "scripts/fetch-jar.sh": {
+    "mtime": 1787347530.4804807,
+    "ast_hash": "7a0f2d0c994879523d230dd281f71254",
+    "semantic_hash": "7a0f2d0c994879523d230dd281f71254"
+  }
+}
