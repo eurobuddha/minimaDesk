@@ -1,9 +1,7 @@
 import HubApp from '../../hub/App';
 import { useShell } from '../ShellContext';
 import DappWebview from './DappWebview';
-import TerminalView from '../views/TerminalView';
 import LogsView from '../views/LogsView';
-import StoreView from '../views/StoreView';
 
 /**
  * All layers stay mounted; only `display` changes. Webviews must never unmount when switching
@@ -22,14 +20,8 @@ export default function Stage() {
           <DappWebview key={t.id} tab={t} active={t.id === activeId} />
         ))}
       </div>
-      <div className="stage-layer stage-view" style={show(activeId === 'terminal', 'flex')}>
-        <TerminalView active={activeId === 'terminal'} />
-      </div>
       <div className="stage-layer stage-view" style={show(activeId === 'logs', 'flex')}>
         <LogsView active={activeId === 'logs'} />
-      </div>
-      <div className="stage-layer stage-view" style={show(activeId === 'store', 'flex')}>
-        <StoreView active={activeId === 'store'} />
       </div>
     </div>
   );

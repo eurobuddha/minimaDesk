@@ -154,7 +154,7 @@
 .stage-webviews webview.hidden { display: none; }
 .stage-view { background: #08090b; display: flex; flex-direction: column; min-height: 0; }
 
-/* ---- views (terminal / logs / store) ---- */
+/* ---- views (node logs) ---- */
 .view-head {
   flex: none; display: flex; align-items: center; gap: 12px; padding: 12px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: #08090b;
@@ -175,52 +175,18 @@
 .view-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 
-.term-out { padding: 12px 16px; font-size: 12.5px; line-height: 1.5; color: #d3d3d8; }
-.term-out .cmd { color: #f9f9fa; font-weight: 700; margin-top: 10px; }
-.term-out .cmd::before { content: '› '; color: #4fe3c1; }
-.term-out .out { white-space: pre-wrap; word-break: break-all; color: #bdbdc4; }
-.term-out .out.err { color: #ff627e; }
-.term-out .out.running { color: #91919d; }
-.term-in {
-  flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: #08090b;
-}
-.term-in .prompt { color: #4fe3c1; font-weight: 800; }
-.term-in input {
-  flex: 1 1 auto; height: 34px; padding: 0 10px; border-radius: 6px; border: 2px solid #464c4f; background: #08090b;
-  color: #f9f9fa; outline: none; font-size: 13px;
-}
-.term-in input:focus { border-color: #a7a7b0; }
-
-.logs-pre { margin: 0; padding: 12px 16px; font-size: 11.5px; line-height: 1.45; color: #bdbdc4; white-space: pre-wrap; word-break: break-all; }
-
-.store-body { padding: 16px; }
-.store-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; color: #a7a7b0; font-size: 13px; }
-.store-head img { width: 36px; height: 36px; border-radius: 8px; background: #282b2e; }
-.store-head .nm { color: #f9f9fa; font-weight: 700; font-size: 15px; }
-.store-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
-.scard { background: #17191c; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
-.scard .top { display: flex; gap: 12px; align-items: center; }
-.scard img, .scard .mono-i { width: 48px; height: 48px; border-radius: 10px; background: #282b2e; flex: none; object-fit: cover; }
-.scard .mono-i { display: flex; align-items: center; justify-content: center; font-weight: 800; color: #f9f9fa; font-size: 18px; }
-.scard .nm { color: #f9f9fa; font-weight: 700; font-size: 14px; }
-.scard .ver { color: #91919d; font-size: 12px; }
-.scard .desc { color: #a7a7b0; font-size: 12.5px; line-height: 1.45; flex: 1 1 auto; }
-.scard .acts { display: flex; align-items: center; gap: 10px; }
-.scard .smsg { font-size: 12px; color: #91919d; }
-.scard .smsg.ok { color: #4fe3c1; }
-.scard .smsg.err { color: #ff627e; }
-.scard .btn {
-  height: 32px; padding: 0 14px; border-radius: 6px; border: 0; cursor: pointer; font-family: inherit; font-size: 12.5px; font-weight: 700;
-  background: #f9f9fa; color: #08090b;
-}
-.scard .btn.ghost { background: #282b2e; color: #e9e9eb; }
-.scard .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.store-empty { color: #91919d; padding: 40px 0; text-align: center; }
-
 /* ---- pending prompt ---- */
 .pending-cmd {
   display: block; margin: 12px 0 16px; padding: 10px 12px; border-radius: 6px; background: #17191c;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; line-height: 1.5;
   color: #d3d3d8; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow: auto;
 }
+
+/* ---- shell notice (bottom-centre pill, e.g. "Installing Terminal IDE…") ---- */
+.shell-notice {
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 1400;
+  padding: 10px 16px; border-radius: 999px; background: #282b2e; color: #e9e9eb; font-size: 12.5px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  animation: shell-notice-in 0.2s ease-out;
+}
+@keyframes shell-notice-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }

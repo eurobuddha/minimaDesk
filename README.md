@@ -33,9 +33,12 @@ npm run dist:mac    # / dist:win / dist:linux  (electron-builder; runs the rende
   It talks to the node through `mds-shim.ts` (a `window.MDS` over the preload bridge) and opens dapps
   through `shell-bridge.ts`. Only the seams are edited; everything else is the stock source.
 - `renderer/src/shell/` — the container around the hub: tab strip with `<webview>` dapp tabs, node chip
-  + popover (full Maxima address, Heal Maxima), Terminal, Node logs, the native MiniDapp Store, and the
-  pending-permission prompt. Terminal / Node logs / MiniDapp Store also appear as tiles in the hub's
-  System folder.
+  + popover (full Maxima address, Heal Maxima), Node logs, and the pending-permission prompt. The Store
+  and Terminal buttons open the bundled **minimaCore App Store** (PandaDapps) and **Terminal IDE**
+  MiniDapps as tabs; both also appear as tiles in the hub's System folder.
+- `resources/dapps/` — the bundled MiniDapps + `manifest.json`. `main/provision.js` installs them on
+  first boot, updates them in place when the bundled or PandaDapps-catalog version is newer, and gives
+  them write permission. Refresh the bundle with `scripts/sync-bundled-dapps.sh` before a release.
 - `renderer/dist/` — Vite output loaded by Electron (gitignored; `npm run build`).
 
 Design language: the hub's own (Core Black `#08090B`, contrasts `#17191C` / `#282B2E`, Manrope).

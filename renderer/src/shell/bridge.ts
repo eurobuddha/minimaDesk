@@ -3,8 +3,13 @@ import type { Dapp } from './ShellContext';
 
 export const minima = () => window.minima;
 
-/** Dapps that install other dapps need write so their installs don't queue to Pending. Granted lazily on open. */
-export const STORE_WRITE_ALLOW = ['minimacore app store', 'dapp store', 'pandadapps', 'pandaapps'];
+/** The bundled dapps the shell's Store / Terminal buttons open (provisioned at boot by main/provision.js). */
+export const STORE_DAPP = 'minimaCore App Store';
+export const TERMINAL_DAPP = 'Terminal IDE';
+
+/** Dapps that get write automatically when opened: stores (their installs must not queue to Pending)
+ *  and the terminal (a terminal that queues every command is not a terminal). */
+export const AUTO_WRITE = ['minimacore app store', 'terminal ide', 'dapp store', 'pandadapps', 'pandaapps'];
 
 export function filehost(mdsPort: number) {
   return `https://127.0.0.1:${mdsPort}/`;

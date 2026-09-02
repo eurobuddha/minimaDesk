@@ -1,0 +1,16 @@
+{
+  "dapps": [
+    {
+      "name": "minimaCore App Store",
+      "file": "minimaCore-App-Store-0.3.0.mds.zip",
+      "version": "0.3.0",
+      "write": true
+    },
+    {
+      "name": "Terminal IDE",
+      "file": "terminal-ide_0.1.0.mds.zip",
+      "version": "0.1.0",
+      "write": true
+    }
+  ]
+}

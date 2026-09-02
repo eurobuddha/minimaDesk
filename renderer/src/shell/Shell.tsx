@@ -2,6 +2,7 @@ import { ShellProvider } from './ShellContext';
 import TitleBar from './TitleBar/TitleBar';
 import Stage from './Stage/Stage';
 import PendingPrompt from './PendingPrompt';
+import ShellNotice from './ShellNotice';
 
 export default function Shell() {
   return (
@@ -10,6 +11,7 @@ export default function Shell() {
         <TitleBar />
         <Stage />
         <PendingPrompt />
+        <ShellNotice />
       </div>
     </ShellProvider>
   );

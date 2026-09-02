@@ -15,6 +15,7 @@ const fs = require("fs");
 const path = require("path");
 const config = require("./config");
 const { rpcCall } = require("./rpc");
+const { provisionBundledDapps } = require("./provision");
 
 const LOG_MAX_LINES = 800;
 const HEALTH_EVERY_MS = 8_000;
@@ -48,6 +49,9 @@ class NodeManager extends EventEmitter {
     this.startedTs = 0;
     this.adopted = false;        // true when we attached to a node a previous instance left running
     this.maximaSetupDone = false;// true once we've wired the node to the relay fleet this run
+    this.provisionDone = false;  // bundled dapps (App Store, Terminal IDE) installed / updated this run
+    this.provisionBusy = false;
+    this.provisionTries = 0;
   }
 
   jarPath() {
@@ -155,6 +159,19 @@ class NodeManager extends EventEmitter {
           maxima
         };
         if (this.state !== "running") this.setState("running"); else this.emit("status", this.snapshot());
+        // Bundled dapps: install / update once MDS answers (retries on later ticks until it does).
+        if (!this.provisionDone && !this.provisionBusy && this.provisionTries < 20) {
+          this.provisionBusy = true; this.provisionTries++;
+          provisionBundledDapps({
+            rpc: (c) => rpcCall(config.rpcPort(), config.rpcSecret(), c),
+            log: (l) => this.log(l),
+            skipCatalog: !app.isPackaged && !!process.env.MDESK_NO_CATALOG
+          }).then((r) => {
+            if (r && r.ready) { this.provisionDone = true; this.emit("status", this.snapshot()); }
+            else this.log("[app] dapps: MDS not ready yet — retrying next tick");
+          }).catch((e) => { this.provisionDone = true; this.log("[app] dapps: provisioning failed: " + e.message); })
+            .finally(() => { this.provisionBusy = false; });
+        }
         // Once Maxima is up, wire the node to the relay fleet so inbound is forwarded (one-time).
         if (maxima && !this.maximaSetupDone) { this.maximaSetupDone = true; this.setupMaximaRelays(); }
       } catch (e) { /* still booting — keep state */ }
@@ -166,6 +183,8 @@ class NodeManager extends EventEmitter {
     if (this.healthTimer) { clearInterval(this.healthTimer); this.healthTimer = null; }
     if (this.maximaRefreshTimer) { clearInterval(this.maximaRefreshTimer); this.maximaRefreshTimer = null; }
     this.maximaSetupDone = false;
+    this.provisionDone = false;
+    this.provisionTries = 0;
     this.health = null;
   }
 
@@ -208,6 +227,7 @@ class NodeManager extends EventEmitter {
   setState(s) { this.state = s; this.emit("status", this.snapshot()); }
   snapshot() {
     return { state: this.state, health: this.health, lastError: this.lastError,
+             provision: { done: this.provisionDone, busy: this.provisionBusy },
              rpcPort: config.rpcPort(), mdsPort: config.mdsPort(), basePort: config.basePort(),
              uptimeMs: this.proc && this.startedTs ? Date.now() - this.startedTs : 0 };
   }

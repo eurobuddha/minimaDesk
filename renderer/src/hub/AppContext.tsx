@@ -185,16 +185,8 @@ const AppProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
             onClick: 'GO_TO_SETTINGS',
           },
         },
-        // minimaDesk: the shell's own tools, as System-folder tiles (no permission → no context menu)
-        {
-          uid: 'system_02',
-          conf: {
-            name: 'Terminal',
-            system: true,
-            overrideIcon: './assets/terminal.svg',
-            onClick: () => shell.openNative('terminal'),
-          },
-        },
+        // minimaDesk: Node logs lives in the shell (the java process output has no MiniDapp); the bundled
+        // Terminal IDE and minimaCore App Store are real dapps with their own tiles (see main/provision.js)
         {
           uid: 'system_03',
           conf: {
@@ -202,15 +194,6 @@ const AppProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
             system: true,
             overrideIcon: './assets/logs.svg',
             onClick: () => shell.openNative('logs'),
-          },
-        },
-        {
-          uid: 'system_04',
-          conf: {
-            name: 'MiniDapp Store',
-            system: true,
-            overrideIcon: './assets/dappstore.png',
-            onClick: () => shell.openNative('store'),
           },
         },
       ];

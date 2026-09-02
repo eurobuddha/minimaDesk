@@ -32,10 +32,6 @@ contextBridge.exposeInMainWorld("minima", {
   // pick a .mds.zip and install it (native file dialog in main)
   install: () => invoke("mds:install"),
 
-  // native store: fetch a repo JSON, and download + install/update a dapp by its file URL
-  storeFetch: (url) => invoke("store:fetch", url),
-  storeInstall: (fileUrl, updateUid) => invoke("store:install", fileUrl, updateUid || null),
-
   // fetch an MDS icon as a data URL (reliable — bypasses self-signed cert img loads)
   iconData: (url) => invoke("mds:icon", url),
 

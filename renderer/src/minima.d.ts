@@ -8,6 +8,7 @@ export type NodeSnapshot = {
   mdsPort: number;
   basePort: number;
   uptimeMs: number;
+  provision?: { done: boolean; busy: boolean };
 };
 export type Ports = { base: number; rpc: number; mds: number; appVersion: string };
 export type RpcReply = { command?: string; status: boolean; pending?: boolean; response?: any; error?: string; cancelled?: boolean };
@@ -23,8 +24,6 @@ export interface MinimaBridge {
   cmd(command: string): Promise<RpcReply>;
   mdsBase(): Promise<{ host: string; port: number }>;
   install(): Promise<RpcReply>;
-  storeFetch(url: string): Promise<RpcReply>;
-  storeInstall(fileUrl: string, updateUid?: string | null): Promise<RpcReply>;
   iconData(url: string): Promise<string>;
   healMaxima(): Promise<{ status: boolean; error?: string }>;
   onOpenUrl(cb: (p: { url: string }) => void): () => void;

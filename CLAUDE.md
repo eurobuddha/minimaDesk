@@ -22,6 +22,9 @@ stripped jar or its bespoke per-dapp code.
   loopback host:port only).
 - The jar is NOT committed (69M) — run `scripts/fetch-jar.sh` (verifies it has
   MDS + Maxima before accepting it).
+- Bundled MiniDapps (minimaCore App Store, Terminal IDE) live in `resources/dapps/` (committed) and
+  are provisioned at boot by `main/provision.js`; refresh them with `scripts/sync-bundled-dapps.sh`
+  before a release.
 
 ## Design language — Minima Website 2024 (Figma)
 Source of truth: `support/minima-mediakit/Minima_Website_2024_design_tokens.md` +

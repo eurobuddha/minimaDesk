@@ -8,10 +8,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { NodeSnapshot, Ports } from '../minima';
 import { bus } from './bus';
-import { STORE_WRITE_ALLOW, parseDappUrl } from './bridge';
+import { AUTO_WRITE, parseDappUrl } from './bridge';
 import { setShellHandlers } from '../hub/shell-bridge';
 
-export type TabKind = 'home' | 'dapp' | 'terminal' | 'logs' | 'store';
+export type TabKind = 'home' | 'dapp' | 'logs';
 export interface Tab {
   id: string;
   kind: TabKind;
@@ -26,7 +26,7 @@ export interface PendingItem { uid: string; command: string; minidapp?: any }
 export interface OpenDappArgs { uid: string; sessionid?: string; name?: string; icon?: string; hash?: string }
 
 const HOME_TAB: Tab = { id: 'home', kind: 'home', name: 'Home', nav: 0 };
-const VIEW_NAMES: Record<string, string> = { terminal: 'Terminal', logs: 'Node logs', store: 'MiniDapp Store' };
+const VIEW_NAMES: Record<string, string> = { logs: 'Node logs' };
 const POLL_MS = 4000;
 
 interface ShellValue {
@@ -36,12 +36,14 @@ interface ShellValue {
   dapps: Dapp[];
   pending: PendingItem[];
   maximaAddress: string;
+  notice: string;
   tabs: Tab[];
   activeId: string;
   activeTab: Tab;
   openDapp: (a: OpenDappArgs) => Promise<void>;
   openDappUrl: (url: string) => Promise<void>;
-  openView: (kind: 'terminal' | 'logs' | 'store') => void;
+  openNamedDapp: (name: string) => Promise<void>;
+  openView: (kind: 'logs') => void;
   switchTab: (id: string) => void;
   closeTab: (id: string) => void;
   installFromFile: () => Promise<any>;
@@ -58,6 +60,11 @@ interface ShellValue {
 const ShellCtx = createContext<ShellValue>({} as ShellValue);
 export const useShell = () => useContext(ShellCtx);
 
+const byName = (list: Dapp[], name: string) => {
+  const n = String(name || '').toLowerCase();
+  return list.find((d) => String(d.conf.name || '').toLowerCase() === n);
+};
+
 export const ShellProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const minima = window.minima;
   const [ports, setPorts] = useState<Ports | null>(null);
@@ -65,6 +72,7 @@ export const ShellProvider: React.FC<React.PropsWithChildren> = ({ children }) =
   const [dapps, setDapps] = useState<Dapp[]>([]);
   const [pending, setPending] = useState<PendingItem[]>([]);
   const [maximaAddress, setMaximaAddress] = useState('');
+  const [notice, setNotice] = useState('');
   const [tabs, setTabs] = useState<Tab[]>([HOME_TAB]);
   const [activeId, setActiveId] = useState('home');
 
@@ -74,16 +82,14 @@ export const ShellProvider: React.FC<React.PropsWithChildren> = ({ children }) =
   const lastBlock = useRef(0);
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
+  const waiting = useRef<string>('');            // a named dapp the user asked for before it was installed
+  const noticeTimer = useRef<any>(null);
+  const openDappRef = useRef<(a: OpenDappArgs) => Promise<void>>(async () => {});
 
-  // ---- node status (pushed by main every health tick) ----
-  const applyStatus = useCallback((s: NodeSnapshot) => {
-    if (!s) return;
-    setStatus(s);
-    const blk = (s.health && s.health.block) || 0;
-    if (blk && blk !== lastBlock.current) {
-      lastBlock.current = blk;
-      bus.emit('block', { block: blk });
-    }
+  const flashNotice = useCallback((text: string, ms = 6000) => {
+    setNotice(text);
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    noticeTimer.current = ms > 0 ? setTimeout(() => setNotice(''), ms) : null;
   }, []);
 
   // ---- dapp list: one poll for the whole shell; sessionid rotation reloads open tabs ----
@@ -112,7 +118,37 @@ export const ShellProvider: React.FC<React.PropsWithChildren> = ({ children }) =
       });
       return changed ? next : ts;
     });
+    // Someone pressed Store / Terminal before the bundled dapp was installed — open it now.
+    if (waiting.current) {
+      const d = byName(list, waiting.current);
+      if (d && d.sessionid) {
+        waiting.current = '';
+        setNotice('');
+        openDappRef.current({ uid: d.uid, name: d.conf.name });
+      }
+    }
   }, []);
+
+  // ---- node status (pushed by main every health tick) ----
+  const applyStatus = useCallback((s: NodeSnapshot) => {
+    if (!s) return;
+    setStatus(s);
+    const blk = (s.health && s.health.block) || 0;
+    if (blk && blk !== lastBlock.current) {
+      lastBlock.current = blk;
+      bus.emit('block', { block: blk });
+    }
+    // Provisioning finished but the dapp the user is waiting for still isn't there.
+    if (s.provision && s.provision.done && waiting.current) {
+      const name = waiting.current;
+      refreshDapps().then(() => {
+        if (waiting.current === name && !byName(dappsRef.current, name)) {
+          waiting.current = '';
+          flashNotice(`${name} isn't installed — install it from the Store`);
+        }
+      });
+    }
+  }, [refreshDapps, flashNotice]);
 
   // ---- pending permission requests (read-mode dapps issuing writes) ----
   const checkPending = useCallback(async () => {
@@ -166,7 +202,7 @@ export const ShellProvider: React.FC<React.PropsWithChildren> = ({ children }) =
     setActiveId((cur) => (cur === id ? (next[Math.max(0, ix - 1)] || HOME_TAB).id : cur));
   }, []);
 
-  const openView = useCallback((kind: 'terminal' | 'logs' | 'store') => {
+  const openView = useCallback((kind: 'logs') => {
     setTabs((ts) => (ts.some((t) => t.id === kind) ? ts : [...ts, { id: kind, kind, name: VIEW_NAMES[kind], nav: 0 }]));
     setActiveId(kind);
   }, []);
@@ -174,9 +210,9 @@ export const ShellProvider: React.FC<React.PropsWithChildren> = ({ children }) =
   const openDapp = useCallback(async (a: OpenDappArgs) => {
     if (!a || !a.uid) return;
     let d = dappsRef.current.find((x) => x.uid === a.uid);
-    // Store-like dapps install other dapps: give them write so those installs don't queue to Pending.
-    // Granting rotates the sessionid, so re-read the list before building the URL.
-    if (d && STORE_WRITE_ALLOW.includes(String(d.conf.name || '').toLowerCase()) && d.conf.permission !== 'write') {
+    // Stores install other dapps and the terminal runs commands: give them write so nothing queues to
+    // Pending. Granting rotates the sessionid, so re-read the list before building the URL.
+    if (d && AUTO_WRITE.includes(String(d.conf.name || '').toLowerCase()) && d.conf.permission !== 'write') {
       try { await minima.cmd(`mds action:permission uid:${d.uid} trust:write`); } catch (e) {}
       sigRef.current = '';
       await refreshDapps();
@@ -195,12 +231,31 @@ export const ShellProvider: React.FC<React.PropsWithChildren> = ({ children }) =
     });
     setActiveId(id);
   }, [refreshDapps]);
+  openDappRef.current = openDapp;
 
   const openDappUrl = useCallback(async (url: string) => {
     const p = parseDappUrl(url);
     if (!p) return;
     await openDapp({ uid: p.uid, sessionid: p.sessionid, hash: p.hash });
   }, [openDapp]);
+
+  /** Open a dapp by its conf.name (the Store / Terminal buttons). Waits for provisioning if needed. */
+  const openNamedDapp = useCallback(async (name: string) => {
+    const d = byName(dappsRef.current, name);
+    if (d) { await openDapp({ uid: d.uid, name: d.conf.name }); return; }
+    waiting.current = name;
+    const s = status;
+    if (s && s.provision && s.provision.done) {
+      // give the list one refresh before giving up — provisioning may have just finished
+      await refreshDapps();
+      if (waiting.current === name && !byName(dappsRef.current, name)) {
+        waiting.current = '';
+        flashNotice(`${name} isn't installed — install it from the Store`);
+      }
+    } else {
+      flashNotice(`Installing ${name}… it will open automatically`, 0);
+    }
+  }, [openDapp, refreshDapps, flashNotice, status]);
 
   const installFromFile = useCallback(async () => {
     const r = await minima.install();
@@ -210,17 +265,16 @@ export const ShellProvider: React.FC<React.PropsWithChildren> = ({ children }) =
     return r;
   }, [refreshDapps, checkPending]);
 
-  const dappLink = useCallback((name: string) => {
-    const n = String(name || '').toLowerCase();
-    return dappsRef.current.find((d) => String(d.conf.name || '').toLowerCase() === n);
-  }, []);
+  const dappLink = useCallback((name: string) => byName(dappsRef.current, name), []);
 
   // ---- boot: ports, status push, open-url push, and the single poll loop ----
+  const applyStatusRef = useRef(applyStatus);
+  applyStatusRef.current = applyStatus;
   useEffect(() => {
     let alive = true;
     minima.ports().then((p) => { if (alive) setPorts(p); }).catch(() => {});
-    minima.snapshot().then((s) => { if (alive) applyStatus(s); }).catch(() => {});
-    const offStatus = minima.onStatus(applyStatus);
+    minima.snapshot().then((s) => { if (alive) applyStatusRef.current(s); }).catch(() => {});
+    const offStatus = minima.onStatus((s) => applyStatusRef.current(s));
     const offUrl = minima.onOpenUrl(({ url }) => { openDappUrl(url); });
     let tick = 0;
     let busy = false;
@@ -252,11 +306,11 @@ export const ShellProvider: React.FC<React.PropsWithChildren> = ({ children }) =
   const nodeRunning = !!(status && status.state === 'running');
 
   const value = useMemo<ShellValue>(() => ({
-    ports, status, nodeRunning, dapps, pending, maximaAddress, tabs, activeId, activeTab,
-    openDapp, openDappUrl, openView, switchTab, closeTab, installFromFile, refreshDapps, checkPending,
+    ports, status, nodeRunning, dapps, pending, maximaAddress, notice, tabs, activeId, activeTab,
+    openDapp, openDappUrl, openNamedDapp, openView, switchTab, closeTab, installFromFile, refreshDapps, checkPending,
     acceptPending, denyPending, snoozePending, refreshMaxima, healMaxima, dappLink,
-  }), [ports, status, nodeRunning, dapps, pending, maximaAddress, tabs, activeId, activeTab,
-    openDapp, openDappUrl, openView, switchTab, closeTab, installFromFile, refreshDapps, checkPending,
+  }), [ports, status, nodeRunning, dapps, pending, maximaAddress, notice, tabs, activeId, activeTab,
+    openDapp, openDappUrl, openNamedDapp, openView, switchTab, closeTab, installFromFile, refreshDapps, checkPending,
     acceptPending, denyPending, snoozePending, refreshMaxima, healMaxima, dappLink]);
 
   return <ShellCtx.Provider value={value}>{children}</ShellCtx.Provider>;

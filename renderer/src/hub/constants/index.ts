@@ -1,2 +1,2 @@
-export const systemApps = ['Settings', 'Health', 'Logs', 'Security', 'Dapp Store', 'Terminal', 'Node logs', 'MiniDapp Store'];
+export const systemApps = ['Settings', 'Health', 'Logs', 'Security', 'Dapp Store', 'Node logs', 'Terminal IDE', 'minimaCore App Store'];
 export const excludedFromFolders = ['Pending'];

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useShell } from '../ShellContext';
-import type { Tab } from '../ShellContext';
-import { iconUrl } from '../bridge';
+import type { Dapp, Tab } from '../ShellContext';
+import { STORE_DAPP, TERMINAL_DAPP, iconUrl } from '../bridge';
 import { useIcon } from '../useIcon';
 import NodePopover from './NodePopover';
 
@@ -41,9 +41,7 @@ function TabItem({ tab }: { tab: Tab }) {
     >
       {tab.kind === 'home' && <MinimaLogo />}
       {tab.kind === 'dapp' && (icon ? <img className="ico" src={icon} alt="" /> : <div className="mono">{(tab.name || '?').trim().charAt(0).toUpperCase()}</div>)}
-      {tab.kind === 'terminal' && <IconTerminal />}
       {tab.kind === 'logs' && <IconLogs />}
-      {tab.kind === 'store' && <IconStore />}
       <span className="ttl">{tab.name}</span>
       {tab.kind !== 'home' && (
         <button className="x" title="Close tab" onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}>
@@ -79,10 +77,16 @@ function NodeChip({ onClick, open }: { onClick: () => void; open: boolean }) {
 }
 
 export default function TitleBar() {
-  const { tabs, activeId, openView, installFromFile } = useShell();
+  const { tabs, activeId, dapps, openView, openNamedDapp, installFromFile } = useShell();
   const [pop, setPop] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
   const isMac = window.minima && window.minima.platform === 'darwin';
+
+  // The Store and Terminal buttons open the bundled dapps (provisioned at boot by main/provision.js).
+  const find = (name: string) => dapps.find((d) => String(d.conf.name || '').toLowerCase() === name.toLowerCase());
+  const isActive = (d?: Dapp) => !!d && activeId === 'dapp-' + d.uid;
+  const store = find(STORE_DAPP);
+  const term = find(TERMINAL_DAPP);
 
   useEffect(() => {
     if (!pop) return;
@@ -101,8 +105,8 @@ export default function TitleBar() {
         <button className="tool add" title="Install a MiniDapp from a file" onClick={() => installFromFile()}>+</button>
       </div>
       <div className="spacer" />
-      <button className={`tool ${activeId === 'store' ? 'active' : ''}`} title="MiniDapp Store" onClick={() => openView('store')}><IconStore /></button>
-      <button className={`tool ${activeId === 'terminal' ? 'active' : ''}`} title="Terminal" onClick={() => openView('terminal')}><IconTerminal /></button>
+      <button className={`tool ${isActive(store) ? 'active' : ''}`} title={STORE_DAPP} onClick={() => openNamedDapp(STORE_DAPP)}><IconStore /></button>
+      <button className={`tool ${isActive(term) ? 'active' : ''}`} title={TERMINAL_DAPP} onClick={() => openNamedDapp(TERMINAL_DAPP)}><IconTerminal /></button>
       <button className={`tool ${activeId === 'logs' ? 'active' : ''}`} title="Node logs" onClick={() => openView('logs')}><IconLogs /></button>
       <NodeChip open={pop} onClick={() => setPop((v) => !v)} />
       {pop && <NodePopover onClose={() => setPop(false)} />}
