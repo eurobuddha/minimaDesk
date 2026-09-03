@@ -34,6 +34,12 @@ Source of truth: `support/minima-mediakit/Minima_Website_2024_design_tokens.md` 
 only, never fields of colour. **Manrope** on the 2024 type scale; mono for machine
 values. Full identifiers always (RULE 1) — never truncate an Mx address / txid.
 
+## Releasing
+`git tag vX.Y.Z && git push origin vX.Y.Z` → `.github/workflows/desktop-build.yml` builds mac/win/linux
+(each runner jlinks its own JRE, fetches the jar, builds the renderer) and attaches the installers to the
+GitHub Release. Then update the three **MinimaClassic Desktop** rows in `desktop/minima-core-apks/apks.json`.
+Product spec: `SPEC.md`.
+
 ## Versioning guardrail
 Every code change ships with a **version bump** (`version` in package.json). One
 logical change = one version = one commit = one push, in order. Docs/config-only

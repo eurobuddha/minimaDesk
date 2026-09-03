@@ -25,8 +25,8 @@
     "semantic_hash": "49285f74af126b134aad3152cab1829d"
   },
   "package.json": {
-    "mtime": 1788438544.2180054,
-    "ast_hash": "910db073000024951a2cb9bc5287649e",
+    "mtime": 1788467391.7126548,
+    "ast_hash": "2036f0a72350d655093f0a2d13de00aa",
     "semantic_hash": ""
   },
   "scripts/fetch-jar.sh": {
@@ -625,8 +625,8 @@
     "semantic_hash": ""
   },
   "resources/dapps/manifest.json": {
-    "mtime": 1788438523.2687986,
-    "ast_hash": "47d1a2f2d8d30ea3e93e801acdcd1ab2",
+    "mtime": 1788467261.0247355,
+    "ast_hash": "6f6e0b7529bf6174ca9d7c06e380c3f9",
     "semantic_hash": ""
   },
   "scripts/sync-bundled-dapps.sh": {

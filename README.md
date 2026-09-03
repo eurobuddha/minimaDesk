@@ -1,4 +1,8 @@
-# minimaDesk
+# minimaDesk — MinimaClassic Desktop
+
+Listed in the stores as **MinimaClassic Desktop** (`desktop/minima-core-apks/apks.json`, DESKTOP group).
+Releases: push a `vX.Y.Z` tag and CI builds the mac DMG, Windows installer and Linux AppImage onto a
+GitHub Release (see `SPEC.md` §3).
 
 A polished desktop **MiniDapp platform** for Minima — runs a full Minima classic
 node and opens installed MDS MiniDapps as **tabs**, in the Minima 2024 brand.
