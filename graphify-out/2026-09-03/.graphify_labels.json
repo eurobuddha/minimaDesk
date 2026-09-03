@@ -1,6 +1,6 @@
 {
   "0": "node-manager.js",
-  "1": "Wallpaper/index.tsx",
+  "1": "Settings/index.tsx",
   "2": "package.json",
   "3": "Dashboard/index.tsx",
   "4": "config.js",
@@ -22,8 +22,5 @@
   "20": "vite.config.ts",
   "21": "minimaDesk — working rules",
   "22": "sync-bundled-dapps.sh",
-  "23": "manifest.json",
-  "24": "portmap.js",
-  "25": "AppList/index.tsx",
-  "26": "App.tsx"
+  "23": "manifest.json"
 }

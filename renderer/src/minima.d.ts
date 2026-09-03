@@ -40,6 +40,7 @@ export interface MinimaBridge {
   install(): Promise<RpcReply>;
   iconData(url: string): Promise<string>;
   healMaxima(): Promise<{ status: boolean; error?: string }>;
+  rpcCopyPassword(): Promise<{ status: boolean; user?: string; port?: number; error?: string }>;
   netConfig(): Promise<{ contribute: boolean; maximaRelay: string; mls: MlsPolicy; knownRelays: KnownRelay[]; basePort: number }>;
   netSetContribute(on: boolean): Promise<{ status: boolean; error?: string }>;
   netSetMaximaRelay(host: string): Promise<{ status: boolean; error?: string }>;

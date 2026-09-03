@@ -330,14 +330,17 @@ class NodeManager extends EventEmitter {
       try { await rpc("connect host:" + relay); } catch (e) {}
       await new Promise(res => setTimeout(res, 3500));
       const info = (await rpc("maxima action:info").catch(() => ({}))).response || {};
+      // staticmls comes back as the host, or as `true` with the host in `mls`
+      const isHost = (v) => typeof v === "string" && /^Mx.+@.+:\d+$/.test(v);
+      const pinnedNow = isHost(info.staticmls) ? info.staticmls : (info.staticmls === true && isHost(info.mls) ? info.mls : "");
       if (mls.mode === "relay") {
         const hosts = ((await rpc("maxima action:hosts").catch(() => ({}))).response || {}).hosts || [];
         const r = hosts.find(h => h.host === relay && h.connected);
-        if (r && r.address && /^Mx.+@.+:\d+$/.test(r.address) && info.staticmls !== r.address) {
+        if (r && r.address && /^Mx.+@.+:\d+$/.test(r.address) && pinnedNow !== r.address) {
           await rpc("maxextra action:staticmls host:" + r.address);
           this.log("[app] pinned static MLS to relay " + relay);
         }
-      } else if (mls.mode === "custom" && mls.custom && info.staticmls !== mls.custom) {
+      } else if (mls.mode === "custom" && mls.custom && pinnedNow !== mls.custom) {
         await rpc("maxextra action:staticmls host:" + mls.custom);
         this.log("[app] pinned static MLS to " + mls.custom);
       }

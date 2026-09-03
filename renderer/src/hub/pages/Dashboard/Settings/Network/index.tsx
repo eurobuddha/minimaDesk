@@ -59,6 +59,7 @@ export function Network({ display, dismiss }: Props) {
   const [msg, setMsg] = useState('');
   const [customRelay, setCustomRelay] = useState('');
   const [customMls, setCustomMls] = useState('');
+  const [copied, setCopied] = useState(false);
 
   const refreshMaxima = async () => {
     try {
@@ -69,7 +70,6 @@ export function Network({ display, dismiss }: Props) {
     } catch (e) { /* node booting */ }
   };
   const refreshCfg = async () => { try { setCfg(await minima.netConfig()); } catch (e) {} };
-
   useEffect(() => {
     if (!display || !minima) return;
     refreshCfg();
@@ -81,6 +81,22 @@ export function Network({ display, dismiss }: Props) {
   }, [display]);
 
   useEffect(() => { if (cfg && cfg.mls.mode === 'custom' && !customMls) setCustomMls(cfg.mls.custom); }, [cfg]);
+
+  // the node returns staticmls either as the host itself or as `true` with the host in `mls`
+  const looksLikeHost = (v: any) => typeof v === 'string' && /^Mx.+@.+:\d+$/.test(v);
+  const pinned = info ? (looksLikeHost(info.staticmls) ? String(info.staticmls) : (info.staticmls === true && looksLikeHost(info.mls) ? String(info.mls) : '')) : '';
+  // Parlons method: the permanent address is anchored to the relay this node is attached to. The relays
+  // run a federated MLS mesh, so any of them resolves MAX#<publickey>#<relay identity> — no registration.
+  const attachedHost = cfg ? cfg.maximaRelay : '';
+  const attached = hosts.find((x) => x && x.host === attachedHost);
+  const relayIdentity = attached && looksLikeHost(attached.address) ? String(attached.address) : '';
+  const relayLabel = (cfg && (cfg.knownRelays.find((r) => r.host === attachedHost) || {}).label) || attachedHost;
+  const permanentAddress = pinned && info && info.publickey ? `MAX#${info.publickey}#${pinned}` : '';
+  const anchoredToRelay = !!pinned && !!relayIdentity && pinned === relayIdentity;
+  const copyPermanent = async () => {
+    if (!permanentAddress) return;
+    try { await navigator.clipboard.writeText(permanentAddress); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (e) {}
+  };
 
   const port = (cfg && cfg.basePort) || (status && status.basePort) || 0;
   const contributing = !!(cfg ? cfg.contribute : status && status.contribute);
@@ -185,20 +201,53 @@ export function Network({ display, dismiss }: Props) {
                 )}
               </div>
 
+              {/* ---- Permanent address (Parlons method: anchored to the attached relay) ---- */}
+              <div className="bg-contrast1 p-4 rounded">
+                <div className="text-lg -mt-0.5 mb-1">Permanent address · MAX#</div>
+                <div className="text-core-grey-80 text-sm mb-4">
+                  Your permanent address is anchored to the always-on relay you are attached to (see Hosts below). The relays
+                  run a federated Location Service mesh, so any of them can resolve it — nothing to register, and it stays
+                  valid as you move between networks.
+                </div>
+                {permanentAddress ? (
+                  <div className="core-black-contrast rounded overflow-hidden mb-4">
+                    <div className="p-3 text-sm flex items-center justify-between">
+                      <span>Your permanent address</span>
+                      <button className="text-sm text-core-grey-80 hover:text-white" onClick={copyPermanent}>{copied ? <span className="text-status-green">Copied</span> : 'Copy'}</button>
+                    </div>
+                    <div className="core-black-contrast-2 p-3 font-mono text-xs leading-5 break-all">{permanentAddress}</div>
+                    <div className="p-3 text-xs">
+                      {anchoredToRelay
+                        ? <span className="text-status-green">● Live — anchored to {relayLabel}, resolved through the federated relay mesh</span>
+                        : <span className="text-amber-300">Pinned to a Location Service other than your attached relay{cfg && cfg.mls.mode === 'custom' ? ' (custom MLS)' : ''}. Press the button below to anchor it to the relay instead.</span>}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-core-grey-20 mb-4">
+                    {attached && !attached.connected ? `Waiting for the relay ${relayLabel} to connect…` : relayIdentity ? 'No permanent address yet.' : 'Waiting for the relay to announce its identity…'}
+                  </div>
+                )}
+                {!anchoredToRelay && (
+                  <Button disabled={!!busy || !relayIdentity} onClick={() => run('perm', () => minima.netSetMls('relay'), 'Permanent address set — anchored to the attached relay')}>
+                    {busy === 'perm' ? 'Setting…' : 'Make this my permanent address'}
+                  </Button>
+                )}
+              </div>
+
               {/* ---- Location service (static MLS) ---- */}
               <div className="bg-contrast1 p-4 rounded">
                 <div className="text-lg -mt-0.5 mb-1">Location service · finds you when you move</div>
                 <div className="text-core-grey-80 text-sm mb-4">
-                  Pin a static Location Service so contacts can always find you when you change networks. Your MAX# address stays permanent while it is pinned.
+                  Which Location Service tells your contacts where you are when you change networks. "Pin the attached relay" is the Parlons method and what your permanent address above is built on.
                 </div>
                 <div className="flex flex-col gap-2 text-sm">
                   <Row k="Mode" v={info ? (info.staticmls ? 'static (pinned)' : 'rotating (host-assigned)') : '—'} />
                   <Row k="Your Maxima address" v={info && info.contact ? info.contact : '—'} mono />
-                  <Row k="Pinned MLS" v={info && info.staticmls ? info.staticmls : (info && info.mls ? `${info.mls} (host-assigned)` : '—')} mono />
+                  <Row k="Pinned MLS" v={pinned ? pinned : (info && info.mls ? `${info.mls} (host-assigned)` : '—')} mono />
                 </div>
                 <div className="mt-4 flex flex-col gap-2">
-                  <Choice on={!!cfg && cfg.mls.mode === 'relay'} title="Pin the attached relay (recommended)" sub="Your address stays fixed as long as the relay is up — minimaDesk keeps it pinned." onClick={() => run('mls', () => minima.netSetMls('relay'), 'Pinning the attached relay…')} />
-                  <Choice on={!!cfg && cfg.mls.mode === 'custom'} title="Custom MLS" sub="Pin a Location Service of your own (Mx…@host:port)." onClick={() => { /* choose via the field below */ }}>
+                  <Choice on={!!cfg && cfg.mls.mode === 'relay'} title="Pin the attached relay" sub="Existing contacts keep finding you through the relay. This alone is not a permanent MAX# address." onClick={() => run('mls', () => minima.netSetMls('relay'), 'Pinning the attached relay…')} />
+                  <Choice on={!!cfg && cfg.mls.mode === 'custom'} title="Custom MLS" sub="Pin a Location Service of your own (Mx…@host:port) — set automatically when you create a permanent address." onClick={() => { /* choose via the field below */ }}>
                     <div className="flex gap-2 mt-2">
                       <input className="grow border-2 border-core-black-contrast-3 bg-black outline-none rounded py-2 px-3 text-sm" placeholder="Mx…@host:port" value={customMls} onChange={(e) => setCustomMls(e.target.value)} />
                       <button className="text-sm px-3 rounded core-black-contrast-3 hover:opacity-80 disabled:opacity-40" disabled={!!busy || !customMls} onClick={() => run('mls', () => minima.netSetMls('custom', customMls), 'Pinned your MLS')}>Pin</button>

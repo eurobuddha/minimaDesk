@@ -9,7 +9,7 @@
  * tabbed shell). Dapps open in <webview> tabs; anything a dapp or the hub tries to `window.open` on the
  * MDS host is turned into a tab via `shell:open-url`.
  */
-const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
@@ -173,6 +173,12 @@ ipcMain.handle("rpc:cmd", async (_e, command) => {
 /** The MDS base a webview loads a dapp from: https://127.0.0.1:<mdsport>/<uid>/index.html?uid=<session>. */
 ipcMain.handle("mds:base", () => ({ host: "127.0.0.1", port: config.mdsPort() }));
 
+/** RPC credentials: the password goes straight to the clipboard from main — the renderer never sees it. */
+ipcMain.handle("rpc:copyPassword", () => {
+  try { clipboard.writeText(config.rpcSecret()); return { status: true, user: "minima", port: config.rpcPort() }; }
+  catch (e) { return { status: false, error: e.message }; }
+});
+
 /** On-demand "Heal Maxima": reconnect the relay, re-pin static MLS, refresh contact addresses. */
 ipcMain.handle("maxima:heal", () => node.healMaxima());
 
@@ -185,6 +191,7 @@ ipcMain.handle("net:config", () => {
 ipcMain.handle("net:setContribute", async (_e, on) => { try { return await node.setContribute(!!on); } catch (e) { return { status: false, error: e.message }; } });
 ipcMain.handle("net:setMaximaRelay", async (_e, host) => { try { return await node.setMaximaRelay(host); } catch (e) { return { status: false, error: e.message }; } });
 ipcMain.handle("net:setMls", async (_e, mode, custom) => { try { return await node.setMls(mode, custom); } catch (e) { return { status: false, error: e.message }; } });
+
 
 /** Pick a .mds.zip and install it (trust:read by default; user grants write via the hub / pending prompt). */
 ipcMain.handle("mds:install", async () => {

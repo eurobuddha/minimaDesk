@@ -39,7 +39,8 @@ npm run dist:mac    # / dist:win / dist:linux  (electron-builder; runs the rende
 - **Settings → Network** — "Contribute to the network" (the node's `-server` role + UPnP/NAT-PMP port
   mapping via `main/portmap.js`, lifted from minimaCore Desktop; reachability is only ever claimed from
   a real incoming peer, with a manual-forward how-to when the router won't play), the Maxima relay to
-  attach to (`main/relays.js`), and the static-MLS policy (pin the relay / custom / host's directory).
+  attach to (`main/relays.js`), the static-MLS policy (pin the relay / custom / host's directory), and your **permanent `MAX#` address**
+  the Parlons way: anchored to the attached relay, resolved through the federated relay MLS mesh.
 - `resources/dapps/` — the bundled MiniDapps + `manifest.json`. `main/provision.js` installs them on
   first boot, updates them in place when the bundled or PandaDapps-catalog version is newer, and gives
   them write permission. Refresh the bundle with `scripts/sync-bundled-dapps.sh` before a release.

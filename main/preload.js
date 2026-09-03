@@ -38,6 +38,9 @@ contextBridge.exposeInMainWorld("minima", {
   // on-demand Maxima heal (reconnect relay + re-pin MLS + refresh contacts)
   healMaxima: () => invoke("maxima:heal"),
 
+  // Settings → minimaDesk: copy the RPC password to the clipboard (never returned to the renderer)
+  rpcCopyPassword: () => invoke("rpc:copyPassword"),
+
   // Settings → Network
   netConfig: () => invoke("net:config"),
   netSetContribute: (on) => invoke("net:setContribute", !!on),

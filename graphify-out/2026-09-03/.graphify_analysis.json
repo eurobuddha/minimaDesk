@@ -1,0 +1,374 @@
+{
+  "communities": {
+    "0": [
+      "main_node_manager",
+      "main_node_manager_app",
+      "main_node_manager_config",
+      "main_node_manager_eventemitter",
+      "main_node_manager_fs",
+      "main_node_manager_maxima_relays",
+      "main_node_manager_nodemanager",
+      "main_node_manager_nodemanager_buildargs",
+      "main_node_manager_nodemanager_constructor",
+      "main_node_manager_nodemanager_healmaxima",
+      "main_node_manager_nodemanager_jarpath",
+      "main_node_manager_nodemanager_javapath",
+      "main_node_manager_nodemanager_log",
+      "main_node_manager_nodemanager_restart",
+      "main_node_manager_nodemanager_setstate",
+      "main_node_manager_nodemanager_setupmaximarelays",
+      "main_node_manager_nodemanager_snapshot",
+      "main_node_manager_nodemanager_start",
+      "main_node_manager_nodemanager_starthealth",
+      "main_node_manager_nodemanager_stop",
+      "main_node_manager_nodemanager_stophealth",
+      "main_node_manager_path",
+      "main_node_manager_rpccall",
+      "main_node_manager_spawn",
+      "main_node_manager_tokenizeargs",
+      "main_rpc",
+      "main_rpc_http",
+      "main_rpc_rpccall",
+      "main_rpc_timeoutfor",
+      "main_rpc_write_prefixes"
+    ],
+    "1": [
+      "renderer_renderer_alltiles",
+      "renderer_renderer_appiconhtml",
+      "renderer_renderer_applyfilter",
+      "renderer_renderer_buildcarousel",
+      "renderer_renderer_catfor",
+      "renderer_renderer_catname",
+      "renderer_renderer_cxlayout",
+      "renderer_renderer_ddesc",
+      "renderer_renderer_dname",
+      "renderer_renderer_esc",
+      "renderer_renderer_featureddapp",
+      "renderer_renderer_getpins",
+      "renderer_renderer_getrecent",
+      "renderer_renderer_iconurl",
+      "renderer_renderer_ispinned",
+      "renderer_renderer_nativetiles",
+      "renderer_renderer_observesections",
+      "renderer_renderer_opendapp",
+      "renderer_renderer_recordrecent",
+      "renderer_renderer_reltime",
+      "renderer_renderer_rendercats",
+      "renderer_renderer_rendercontinue",
+      "renderer_renderer_renderhero",
+      "renderer_renderer_renderhome",
+      "renderer_renderer_renderpinned",
+      "renderer_renderer_rendersections",
+      "renderer_renderer_tilehtml",
+      "renderer_renderer_togglepin",
+      "renderer_renderer_updatefoot",
+      "renderer_renderer_wireicons"
+    ],
+    "2": [
+      "package_build",
+      "package_build_appid",
+      "package_build_extraresources",
+      "package_build_files",
+      "package_build_linux",
+      "package_build_mac",
+      "package_build_nsis",
+      "package_build_productname",
+      "package_build_win",
+      "package_linux_category",
+      "package_linux_icon",
+      "package_linux_maintainer",
+      "package_linux_target",
+      "package_mac_category",
+      "package_mac_entitlements",
+      "package_mac_entitlementsinherit",
+      "package_mac_hardenedruntime",
+      "package_mac_icon",
+      "package_mac_identity",
+      "package_mac_target",
+      "package_nsis_allowtochangeinstallationdirectory",
+      "package_nsis_oneclick",
+      "package_nsis_permachine",
+      "package_win_icon",
+      "package_win_target",
+      "ref_main",
+      "ref_map",
+      "ref_renderer"
+    ],
+    "3": [
+      "renderer_renderer",
+      "renderer_renderer_applytheme",
+      "renderer_renderer_cat_rules",
+      "renderer_renderer_cats",
+      "renderer_renderer_cx",
+      "renderer_renderer_cxgoto",
+      "renderer_renderer_cxstep",
+      "renderer_renderer_dapps",
+      "renderer_renderer_dappurl",
+      "renderer_renderer_dver",
+      "renderer_renderer_fetchbalance",
+      "renderer_renderer_icon_cache",
+      "renderer_renderer_ports",
+      "renderer_renderer_refreshmaximaaddr",
+      "renderer_renderer_store_items",
+      "renderer_renderer_store_repos",
+      "renderer_renderer_store_write_allow",
+      "renderer_renderer_tabs",
+      "renderer_renderer_term_hist",
+      "renderer_renderer_termappend",
+      "renderer_renderer_toggletheme"
+    ],
+    "4": [
+      "main_config",
+      "main_config_app_safestorage",
+      "main_config_baseport",
+      "main_config_configpath",
+      "main_config_crypto",
+      "main_config_defaultdatafolder",
+      "main_config_defaults",
+      "main_config_encavailable",
+      "main_config_ensuresecret",
+      "main_config_fs",
+      "main_config_load",
+      "main_config_mdspassword",
+      "main_config_mdsport",
+      "main_config_path",
+      "main_config_readsecret",
+      "main_config_rpcport",
+      "main_config_rpcsecret",
+      "main_config_save",
+      "main_config_secretpath",
+      "main_config_writesecret"
+    ],
+    "5": [
+      "electron",
+      "electron_builder",
+      "package",
+      "package_author",
+      "package_description",
+      "package_devdependencies",
+      "package_devdependencies_electron",
+      "package_devdependencies_electron_builder",
+      "package_license",
+      "package_main",
+      "package_name",
+      "package_productname",
+      "package_scripts",
+      "package_scripts_dist_linux",
+      "package_scripts_dist_mac",
+      "package_scripts_dist_win",
+      "package_scripts_start",
+      "package_version"
+    ],
+    "6": [
+      "main_main",
+      "main_main_app_browserwindow_ipcmain_dialog",
+      "main_main_config",
+      "main_main_createwindow",
+      "main_main_fetchbuffer",
+      "main_main_fetchloopback",
+      "main_main_fs",
+      "main_main_gotlock",
+      "main_main_guessmime",
+      "main_main_https",
+      "main_main_iconcache",
+      "main_main_net",
+      "main_main_node",
+      "main_main_os",
+      "main_main_path",
+      "main_main_rpccall",
+      "main_main_trustloopbackmds"
+    ],
+    "7": [
+      "renderer_renderer_closetab",
+      "renderer_renderer_hometabinner",
+      "renderer_renderer_monogram",
+      "renderer_renderer_opennative",
+      "renderer_renderer_refreshlogs",
+      "renderer_renderer_rendertabs",
+      "renderer_renderer_sethomemode",
+      "renderer_renderer_stopcarousel",
+      "renderer_renderer_switchtab",
+      "renderer_renderer_uninstall"
+    ],
+    "8": [
+      "renderer_renderer_absurl",
+      "renderer_renderer_buildreposelect",
+      "renderer_renderer_installedbyname",
+      "renderer_renderer_installfromstore",
+      "renderer_renderer_loadstore",
+      "renderer_renderer_normalisestore",
+      "renderer_renderer_renderstore"
+    ],
+    "9": [
+      "renderer_renderer_checkpending",
+      "renderer_renderer_hideprompt",
+      "renderer_renderer_install",
+      "renderer_renderer_loaddapps",
+      "renderer_renderer_permsof",
+      "renderer_renderer_showprompt",
+      "renderer_renderer_toggletrust"
+    ],
+    "10": [
+      "renderer_renderer_applystatus",
+      "renderer_renderer_cxspark",
+      "renderer_renderer_fmtnum",
+      "renderer_renderer_heartbeat",
+      "renderer_renderer_setblockdisplay"
+    ],
+    "11": [
+      "renderer_renderer_cxapplytilt",
+      "renderer_renderer_cxparticles",
+      "renderer_renderer_cxtick",
+      "renderer_renderer_startcarousel"
+    ],
+    "12": [
+      "renderer_renderer_cxglow",
+      "renderer_renderer_cxgrad",
+      "renderer_renderer_huefor"
+    ],
+    "13": [
+      "renderer_renderer_d",
+      "renderer_renderer_ensurestorewrite",
+      "renderer_renderer_isstoredapp"
+    ],
+    "14": [
+      "main_preload",
+      "main_preload_contextbridge_ipcrenderer"
+    ],
+    "15": [
+      "scripts_fetch_jar",
+      "scripts_fetch_jar_sh__entry"
+    ]
+  },
+  "cohesion": {
+    "0": 0.12413793103448276,
+    "1": 0.17701149425287357,
+    "2": 0.07142857142857142,
+    "3": 0.10476190476190476,
+    "4": 0.16842105263157894,
+    "5": 0.1111111111111111,
+    "6": 0.11764705882352941,
+    "7": 0.2222222222222222,
+    "8": 0.3333333333333333,
+    "9": 0.42857142857142855,
+    "10": 0.5,
+    "11": 0.5,
+    "12": 0.6666666666666666,
+    "13": 0.6666666666666666,
+    "14": 1.0,
+    "15": 1.0
+  },
+  "gods": [
+    {
+      "id": "main_node_manager_nodemanager",
+      "label": "NodeManager",
+      "degree": 15
+    },
+    {
+      "id": "renderer_renderer_dname",
+      "label": "dName()",
+      "degree": 15
+    },
+    {
+      "id": "renderer_renderer_buildcarousel",
+      "label": "buildCarousel()",
+      "degree": 15
+    },
+    {
+      "id": "renderer_renderer_esc",
+      "label": "esc()",
+      "degree": 14
+    },
+    {
+      "id": "renderer_renderer_opendapp",
+      "label": "openDapp()",
+      "degree": 14
+    },
+    {
+      "id": "renderer_renderer_renderhero",
+      "label": "renderHero()",
+      "degree": 12
+    },
+    {
+      "id": "renderer_renderer_rendercontinue",
+      "label": "renderContinue()",
+      "degree": 12
+    },
+    {
+      "id": "renderer_renderer_rendersections",
+      "label": "renderSections()",
+      "degree": 12
+    },
+    {
+      "id": "renderer_renderer_appiconhtml",
+      "label": "appiconHTML()",
+      "degree": 11
+    },
+    {
+      "id": "renderer_renderer_switchtab",
+      "label": "switchTab()",
+      "degree": 11
+    }
+  ],
+  "surprises": [
+    {
+      "source": "renderHero()",
+      "target": "install()",
+      "source_files": [
+        "renderer/renderer.js",
+        "renderer/renderer.js"
+      ],
+      "confidence": "INFERRED",
+      "relation": "indirect_call",
+      "note": "Bridges community 1 \u2192 community 9"
+    },
+    {
+      "source": "loadStore()",
+      "target": "esc()",
+      "source_files": [
+        "renderer/renderer.js",
+        "renderer/renderer.js"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "note": "Bridges community 1 \u2192 community 8"
+    },
+    {
+      "source": "renderTabs()",
+      "target": "esc()",
+      "source_files": [
+        "renderer/renderer.js",
+        "renderer/renderer.js"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "note": "Bridges community 1 \u2192 community 7"
+    },
+    {
+      "source": "setBlockDisplay()",
+      "target": "esc()",
+      "source_files": [
+        "renderer/renderer.js",
+        "renderer/renderer.js"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "note": "Bridges community 1 \u2192 community 10"
+    },
+    {
+      "source": "showPrompt()",
+      "target": "monogram()",
+      "source_files": [
+        "renderer/renderer.js",
+        "renderer/renderer.js"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "note": "Bridges community 7 \u2192 community 9"
+    }
+  ],
+  "tokens": {
+    "input": 0,
+    "output": 0
+  }
+}

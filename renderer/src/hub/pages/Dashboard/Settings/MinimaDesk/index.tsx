@@ -16,6 +16,7 @@ export function MinimaDesk({ display, dismiss }: Props) {
   const [healing, setHealing] = useState(false);
   const [healMsg, setHealMsg] = useState('');
   const [restarting, setRestarting] = useState(false);
+  const [rpcMsg, setRpcMsg] = useState('');
 
   useEffect(() => {
     if (!display || !minima) return;
@@ -79,6 +80,22 @@ export function MinimaDesk({ display, dismiss }: Props) {
                   {healing ? 'Healing…' : 'Heal Maxima'}
                 </Button>
                 {healMsg && <div className="mt-3 text-sm text-core-grey-80">{healMsg}</div>}
+              </div>
+
+              <div className="bg-contrast1 p-4 rounded">
+                <div className="text-lg -mt-0.5 mb-2">RPC access</div>
+                <div className="mb-3 text-core-grey-80">
+                  The node's RPC uses HTTP Basic auth. User <span className="text-white font-mono">minima</span>, port{' '}
+                  <span className="text-white font-mono">{ports ? ports.rpc : '…'}</span> on 127.0.0.1. The password was generated
+                  for this install and is stored encrypted; it is copied to your clipboard here without ever being shown.
+                </div>
+                <Button variant="secondary" onClick={async () => {
+                  const r = await minima.rpcCopyPassword();
+                  setRpcMsg(r && r.status ? `Password copied — e.g. curl -u minima:<paste> http://127.0.0.1:${r.port}/status` : 'Could not read the RPC secret: ' + ((r && r.error) || 'unknown'));
+                }}>
+                  Copy RPC password
+                </Button>
+                {rpcMsg && <div className="mt-3 text-sm text-core-grey-80 break-all">{rpcMsg}</div>}
               </div>
 
               <div className="bg-contrast1 p-4 rounded mb-5">
