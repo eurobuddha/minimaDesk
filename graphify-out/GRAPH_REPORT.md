@@ -1,22 +1,22 @@
 # Graph Report - minimaDesk  (2026-09-03)
 
 ## Corpus Check
-- 112 files · ~100,235 words
+- 112 files · ~100,261 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 606 nodes · 1094 edges · 27 communities (22 shown, 5 thin omitted)
+- 606 nodes · 1092 edges · 27 communities (22 shown, 5 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 26 edges (avg confidence: 0.5)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `fe94fb9b`
+- Built from commit: `80a55c16`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - node-manager.js
-- Network/index.tsx
+- Folders/index.tsx
 - package.json
 - AppContext.tsx
 - config.js
@@ -26,7 +26,6 @@
 - lib/index.ts
 - MinimaBridge
 - compilerOptions
-- MaximaProfile/index.tsx
 - provision.js
 - minimaDesk
 - preload.js
@@ -37,7 +36,7 @@
 - manifest.json
 - PortMapper
 - AppList/index.tsx
-- App.tsx
+- MaximaProfile/index.tsx
 
 ## God Nodes (most connected - your core abstractions)
 1. `appContext` - 36 edges
@@ -52,16 +51,16 @@
 10. `Button()` - 10 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `Folders()` --calls--> `get()`  [EXTRACTED]
+  renderer/src/hub/pages/Dashboard/Settings/Folders/index.tsx → renderer/src/hub/lib/index.ts
+- `provisionBundledDapps()` --calls--> `fetchBuffer()`  [EXTRACTED]
+  main/provision.js → main/net.js
 - `AppProvider()` --calls--> `peers()`  [EXTRACTED]
   renderer/src/hub/AppContext.tsx → renderer/src/hub/lib/index.ts
 - `AppProvider()` --calls--> `uninstallApp()`  [EXTRACTED]
   renderer/src/hub/AppContext.tsx → renderer/src/hub/lib/index.ts
 - `Dashboard()` --calls--> `useAppList()`  [EXTRACTED]
   renderer/src/hub/pages/Dashboard/index.tsx → renderer/src/hub/hooks/useAppList.ts
-- `Wallpaper()` --calls--> `filePathOf()`  [EXTRACTED]
-  renderer/src/hub/pages/Dashboard/Settings/Wallpaper/index.tsx → renderer/src/hub/lib/index.ts
-- `TitleBar()` --calls--> `dAppLink()`  [EXTRACTED]
-  renderer/src/hub/components/StatusBar/index.tsx → renderer/src/hub/lib/index.ts
 
 ## Import Cycles
 - None detected.
@@ -72,9 +71,9 @@
 Cohesion: 0.10
 Nodes (20): { app }, config, currentRelay(), { DEFAULT_RELAY, isHostPort, isMlsIdentity }, EventEmitter, fs, NodeManager, path (+12 more)
 
-### Community 1 - "Network/index.tsx"
-Cohesion: 0.31
-Nodes (6): RFC-1918, contribHelp(), isPrivateAddr(), Network(), Props, toneClass()
+### Community 1 - "Folders/index.tsx"
+Cohesion: 0.07
+Nodes (24): RFC-1918, Block(), BlockProps, FullScreenProps, IProps, Toggle(), IS_MINIMA_BROWSER, peers() (+16 more)
 
 ### Community 2 - "package.json"
 Cohesion: 0.04
@@ -82,7 +81,7 @@ Nodes (45): author, build, appId, extraResources, files, linux, mac, nsis (+37 m
 
 ### Community 3 - "AppContext.tsx"
 Cohesion: 0.06
-Nodes (44): drawerAnimation, folderAnimation, modalAnimation, slideAnimation, appContext, BadgeNotification(), Blur(), Confirm() (+36 more)
+Nodes (50): drawerAnimation, folderAnimation, modalAnimation, slideAnimation, appContext, BadgeNotification(), Blur(), Confirm() (+42 more)
 
 ### Community 4 - "config.js"
 Cohesion: 0.16
@@ -101,8 +100,8 @@ Cohesion: 0.06
 Nodes (41): installMdsShim(), setShellHandlers(), AUTO_WRITE, dappUrl(), filehost(), iconUrl(), parseDappUrl(), STORE_DAPP (+33 more)
 
 ### Community 8 - "lib/index.ts"
-Cohesion: 0.08
-Nodes (37): AppProvider(), checkIfDappMatchesZip(), IProps, Toggle(), useFoldersTheme(), useWallpaper(), addPeers(), block() (+29 more)
+Cohesion: 0.11
+Nodes (30): AppProvider(), checkIfDappMatchesZip(), useFoldersTheme(), useWallpaper(), addPeers(), block(), filePathOf(), get() (+22 more)
 
 ### Community 9 - "MinimaBridge"
 Cohesion: 0.06
@@ -112,12 +111,8 @@ Nodes (9): KnownRelay, MinimaBridge, MlsPolicy, NodeHealth, NodeSnapshot, Portma
 Cohesion: 0.08
 Nodes (23): DOM, DOM.Iterable, ES2020, src, vite/client, compilerOptions, allowJs, allowSyntheticDefaultImports (+15 more)
 
-### Community 11 - "MaximaProfile/index.tsx"
-Cohesion: 0.09
-Nodes (12): DashboardActionBar(), MobileSearchItem(), MaximaProfile(), CopyIcon(), CopySuccessIcon(), dAppLink(), Handlers, NativeView (+4 more)
-
 ### Community 12 - "provision.js"
-Cohesion: 0.10
+Cohesion: 0.09
 Nodes (24): cache, clear(), set(), fetchBuffer(), { net }, { app }, { compareVersions }, crypto (+16 more)
 
 ### Community 13 - "minimaDesk"
@@ -136,12 +131,12 @@ Nodes (12): defaultRoute(), dgram, EventEmitter, { execFile }, isPrivateIp(), RF
 Cohesion: 0.22
 Nodes (8): AppFolder(), AppList(), AppList(), excludedFromFolders, systemApps, sortByType(), useAppList(), AppData
 
-### Community 26 - "App.tsx"
-Cohesion: 0.16
-Nodes (9): Introduction(), Dashboard(), findPageIndexContainingApp(), Delete(), Install(), Root(), Settings(), SettingsAddConnections() (+1 more)
+### Community 26 - "MaximaProfile/index.tsx"
+Cohesion: 0.39
+Nodes (4): MaximaProfile(), CopyIcon(), CopySuccessIcon(), copyToClipboard()
 
 ## Knowledge Gaps
-- **189 isolated node(s):** `{ app, safeStorage }`, `crypto`, `fs`, `path`, `DEFAULTS` (+184 more)
+- **189 isolated node(s):** `{ app }`, `fs`, `os`, `path`, `{ fetchBuffer }` (+184 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **5 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -150,15 +145,15 @@ _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `devDependencies` connect `devDependencies` to `package.json`?**
   _High betweenness centrality (0.018) - this node is a cross-community bridge._
-- **Why does `appContext` connect `AppContext.tsx` to `Network/index.tsx`, `lib/index.ts`, `MaximaProfile/index.tsx`, `AppList/index.tsx`, `App.tsx`?**
+- **Why does `appContext` connect `AppContext.tsx` to `lib/index.ts`, `AppList/index.tsx`, `MaximaProfile/index.tsx`, `Folders/index.tsx`?**
   _High betweenness centrality (0.015) - this node is a cross-community bridge._
-- **What connects `{ app, safeStorage }`, `crypto`, `fs` to the rest of the system?**
+- **What connects `{ app }`, `fs`, `os` to the rest of the system?**
   _189 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `node-manager.js` be split into smaller, more focused modules?**
   _Cohesion score 0.10409745293466224 - nodes in this community are weakly interconnected._
+- **Should `Folders/index.tsx` be split into smaller, more focused modules?**
+  _Cohesion score 0.06852497096399536 - nodes in this community are weakly interconnected._
 - **Should `package.json` be split into smaller, more focused modules?**
   _Cohesion score 0.043478260869565216 - nodes in this community are weakly interconnected._
 - **Should `AppContext.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.05854341736694678 - nodes in this community are weakly interconnected._
-- **Should `devDependencies` be split into smaller, more focused modules?**
-  _Cohesion score 0.04081632653061224 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.0559244126659857 - nodes in this community are weakly interconnected._
