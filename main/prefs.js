@@ -15,8 +15,11 @@ function readAll() {
   catch (e) { return {}; }
 }
 function writeAll(obj) {
+  // crash-safe: temp file + rename (see config.writeAtomic)
   fs.mkdirSync(app.getPath("userData"), { recursive: true });
-  fs.writeFileSync(file(), JSON.stringify(obj, null, 2), { mode: 0o600 });
+  const tmp = file() + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2), { mode: 0o600 });
+  fs.renameSync(tmp, file());
 }
 
 /** keypair.get semantics: {status:true, value} when present, {status:false} when not. */

@@ -1,22 +1,21 @@
 # Graph Report - minimaDesk  (2026-09-03)
 
 ## Corpus Check
-- 111 files · ~96,773 words
+- 111 files · ~97,448 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 585 nodes · 1065 edges · 27 communities (22 shown, 5 thin omitted)
+- 585 nodes · 1060 edges · 26 communities (21 shown, 5 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 19 edges (avg confidence: 0.5)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `528435ca`
+- Built from commit: `e03a9f93`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - node-manager.js
-- Wallpaper/index.tsx
 - package.json
 - Dashboard/index.tsx
 - config.js
@@ -26,7 +25,7 @@
 - AppContext.tsx
 - MinimaBridge
 - compilerOptions
-- MaximaProfile/index.tsx
+- StatusBar/index.tsx
 - provision.js
 - minimaDesk
 - preload.js
@@ -35,54 +34,50 @@
 - minimaDesk — working rules
 - sync-bundled-dapps.sh
 - manifest.json
-- portmap.js
+- PortMapper
 - AppList/index.tsx
 - App.tsx
 
 ## God Nodes (most connected - your core abstractions)
 1. `appContext` - 36 edges
-2. `MinimaBridge` - 24 edges
+2. `MinimaBridge` - 25 edges
 3. `NodeManager` - 18 edges
 4. `compilerOptions` - 17 edges
 5. `useShell()` - 15 edges
 6. `PortMapper` - 14 edges
 7. `AppProvider()` - 14 edges
-8. `Button()` - 14 edges
-9. `modalAnimation` - 13 edges
+8. `modalAnimation` - 13 edges
+9. `Button()` - 13 edges
 10. `provisionBundledDapps()` - 11 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Wallpaper()` --calls--> `filePathOf()`  [EXTRACTED]
-  renderer/src/hub/pages/Dashboard/Settings/Wallpaper/index.tsx → renderer/src/hub/lib/index.ts
-- `AppProvider()` --calls--> `peers()`  [EXTRACTED]
-  renderer/src/hub/AppContext.tsx → renderer/src/hub/lib/index.ts
 - `PendingPrompt()` --calls--> `useShell()`  [EXTRACTED]
   renderer/src/shell/PendingPrompt.tsx → renderer/src/shell/ShellContext.tsx
 - `NodeChip()` --calls--> `useShell()`  [EXTRACTED]
   renderer/src/shell/TitleBar/TitleBar.tsx → renderer/src/shell/ShellContext.tsx
-- `MobileSearchItem()` --calls--> `dAppLink()`  [EXTRACTED]
-  renderer/src/hub/components/DashboardActionBar/MobileSearchItem/index.tsx → renderer/src/hub/lib/index.ts
+- `Dashboard()` --calls--> `useAppList()`  [EXTRACTED]
+  renderer/src/hub/pages/Dashboard/index.tsx → renderer/src/hub/hooks/useAppList.ts
+- `Wallpaper()` --calls--> `filePathOf()`  [EXTRACTED]
+  renderer/src/hub/pages/Dashboard/Settings/Wallpaper/index.tsx → renderer/src/hub/lib/index.ts
+- `ConfirmDelete()` --calls--> `uninstallApp()`  [EXTRACTED]
+  renderer/src/hub/pages/Dashboard/DeleteMiniDapp/index.tsx → renderer/src/hub/lib/index.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (27 total, 5 thin omitted)
+## Communities (26 total, 5 thin omitted)
 
 ### Community 0 - "node-manager.js"
-Cohesion: 0.12
-Nodes (18): { app }, config, currentRelay(), { DEFAULT_RELAY, isHostPort }, EventEmitter, fs, NodeManager, path (+10 more)
-
-### Community 1 - "Wallpaper/index.tsx"
-Cohesion: 0.08
-Nodes (26): slideAnimation, Block(), BlockProps, SlideScreen(), SlideScreenProps, IS_MINIMA_BROWSER, peers(), BackButton() (+18 more)
+Cohesion: 0.11
+Nodes (19): { app }, config, currentRelay(), { DEFAULT_RELAY, isHostPort }, EventEmitter, fs, NodeManager, path (+11 more)
 
 ### Community 2 - "package.json"
 Cohesion: 0.04
 Nodes (46): author, build, appId, extraResources, files, linux, mac, nsis (+38 more)
 
 ### Community 3 - "Dashboard/index.tsx"
-Cohesion: 0.08
-Nodes (31): drawerAnimation, folderAnimation, modalAnimation, appContext, BadgeNotification(), Blur(), Confirm(), nameList (+23 more)
+Cohesion: 0.07
+Nodes (42): drawerAnimation, folderAnimation, modalAnimation, slideAnimation, appContext, checkIfDappMatchesZip(), BadgeNotification(), Blur() (+34 more)
 
 ### Community 4 - "config.js"
 Cohesion: 0.17
@@ -94,15 +89,15 @@ Nodes (49): autoprefixer, concurrently, date-fns, electron, electron-builder, em
 
 ### Community 6 - "main.js"
 Cohesion: 0.08
-Nodes (29): { app, BrowserWindow, ipcMain, dialog, shell }, config, createWindow(), currentWallpaper(), { fetchBuffer }, fs, gotLock, https (+21 more)
+Nodes (28): { app, BrowserWindow, ipcMain, dialog, shell, clipboard }, config, createWindow(), currentWallpaper(), { fetchBuffer }, fs, gotLock, https (+20 more)
 
 ### Community 7 - "ShellContext.tsx"
 Cohesion: 0.07
 Nodes (38): installMdsShim(), setShellHandlers(), AUTO_WRITE, dappUrl(), filehost(), iconUrl(), parseDappUrl(), STORE_DAPP (+30 more)
 
 ### Community 8 - "AppContext.tsx"
-Cohesion: 0.11
-Nodes (34): AppProvider(), checkIfDappMatchesZip(), IProps, Toggle(), useFoldersTheme(), useWallpaper(), addPeers(), block() (+26 more)
+Cohesion: 0.06
+Nodes (42): RFC-1918, AppProvider(), Block(), BlockProps, IProps, Toggle(), IS_MINIMA_BROWSER, useFoldersTheme() (+34 more)
 
 ### Community 9 - "MinimaBridge"
 Cohesion: 0.06
@@ -112,9 +107,9 @@ Nodes (9): KnownRelay, MinimaBridge, MlsPolicy, NodeHealth, NodeSnapshot, Portma
 Cohesion: 0.08
 Nodes (23): DOM, DOM.Iterable, ES2020, src, vite/client, compilerOptions, allowJs, allowSyntheticDefaultImports (+15 more)
 
-### Community 11 - "MaximaProfile/index.tsx"
-Cohesion: 0.10
-Nodes (11): DashboardActionBar(), MobileSearchItem(), MaximaProfile(), CopyIcon(), CopySuccessIcon(), Handlers, NativeView, OpenDappArgs (+3 more)
+### Community 11 - "StatusBar/index.tsx"
+Cohesion: 0.07
+Nodes (18): DashboardActionBar(), MobileSearchItem(), MaximaProfile(), MDSFail(), BlockInfo(), TitleBar(), Status(), BroadcastIcon() (+10 more)
 
 ### Community 12 - "provision.js"
 Cohesion: 0.17
@@ -128,12 +123,12 @@ Nodes (4): Build installers, Develop, How it is put together, minimaDesk
 Cohesion: 0.40
 Nodes (4): Design language — Minima Website 2024 (Figma), minimaDesk — working rules, Node facts, Versioning guardrail
 
-### Community 24 - "portmap.js"
+### Community 24 - "PortMapper"
 Cohesion: 0.15
 Nodes (12): defaultRoute(), dgram, EventEmitter, { execFile }, isPrivateIp(), RFC-1918, lanIp(), os (+4 more)
 
 ### Community 25 - "AppList/index.tsx"
-Cohesion: 0.22
+Cohesion: 0.29
 Nodes (8): AppFolder(), AppList(), AppList(), excludedFromFolders, systemApps, sortByType(), useAppList(), AppData
 
 ### Community 26 - "App.tsx"
@@ -141,7 +136,7 @@ Cohesion: 0.19
 Nodes (7): Introduction(), Delete(), Install(), Root(), Settings(), SettingsAddConnections(), Update()
 
 ## Knowledge Gaps
-- **187 isolated node(s):** `Develop`, `Build installers`, `How it is put together`, `{ app, safeStorage }`, `crypto` (+182 more)
+- **188 isolated node(s):** `Develop`, `Build installers`, `How it is put together`, `{ app, BrowserWindow, ipcMain, dialog, shell, clipboard }`, `path` (+183 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **5 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -150,15 +145,15 @@ _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `devDependencies` connect `devDependencies` to `package.json`?**
   _High betweenness centrality (0.020) - this node is a cross-community bridge._
-- **Why does `appContext` connect `Dashboard/index.tsx` to `Wallpaper/index.tsx`, `AppContext.tsx`, `MaximaProfile/index.tsx`, `AppList/index.tsx`, `App.tsx`?**
+- **Why does `appContext` connect `Dashboard/index.tsx` to `AppContext.tsx`, `AppList/index.tsx`, `App.tsx`, `StatusBar/index.tsx`?**
   _High betweenness centrality (0.015) - this node is a cross-community bridge._
 - **What connects `Develop`, `Build installers`, `How it is put together` to the rest of the system?**
-  _187 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _188 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `node-manager.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.11861861861861862 - nodes in this community are weakly interconnected._
-- **Should `Wallpaper/index.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.07751937984496124 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.10931174089068826 - nodes in this community are weakly interconnected._
 - **Should `package.json` be split into smaller, more focused modules?**
   _Cohesion score 0.0425531914893617 - nodes in this community are weakly interconnected._
 - **Should `Dashboard/index.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.08082706766917293 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06680080482897384 - nodes in this community are weakly interconnected._
+- **Should `devDependencies` be split into smaller, more focused modules?**
+  _Cohesion score 0.04081632653061224 - nodes in this community are weakly interconnected._

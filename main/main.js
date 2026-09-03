@@ -12,13 +12,12 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require("electron");
 const path = require("path");
 const fs = require("fs");
-const os = require("os");
 const https = require("https");
 const config = require("./config");
 const node = require("./node-manager");
 const prefs = require("./prefs");
 const { rpcCall } = require("./rpc");
-const { fetchBuffer } = require("./net");
+const iconcache = require("./iconcache");
 const { KNOWN_RELAYS } = require("./relays");
 
 // Dev only: run from an isolated userData (own secrets, own single-instance lock, own config/port) so a
@@ -28,7 +27,11 @@ if (!app.isPackaged && process.env.MDESK_USERDATA) app.setPath("userData", proce
 let win = null;
 const send = (ch, payload) => { if (win && !win.isDestroyed()) win.webContents.send(ch, payload); };
 
-// ---- window.open policy: MDS dapp URLs become tabs, https goes to the OS browser, file: to the OS ----
+// ---- window.open policy ----
+// MDS dapp URLs become tabs; http(s) goes to the OS browser; NOTHING else. In particular `file:` is never
+// handed to the OS from web content: a MiniDapp can write any file through the MDS file API and would
+// otherwise get it launched with its default app. The hub's own local links (Terms) go through
+// `shell:open`, which only opens files inside the packaged renderer.
 function isLoopbackMdsUrl(url) {
   try {
     const u = new URL(url);
@@ -38,8 +41,16 @@ function isLoopbackMdsUrl(url) {
 function windowOpenHandler({ url }) {
   if (isLoopbackMdsUrl(url)) { send("shell:open-url", { url }); return { action: "deny" }; }
   if (/^https?:\/\//i.test(url)) { shell.openExternal(url).catch(() => {}); }
-  else if (/^file:\/\//i.test(url)) { try { shell.openPath(decodeURIComponent(new URL(url).pathname)); } catch (e) {} }
   return { action: "deny" };
+}
+/** Local files the hub may open: only inside the built renderer (e.g. assets/terms.docx.html). */
+function rendererDistDir() { return path.resolve(path.join(__dirname, "..", "renderer", "dist")); }
+function isInsideRendererDist(fileUrl) {
+  try {
+    const p = path.resolve(decodeURIComponent(new URL(fileUrl).pathname));
+    const root = rendererDistDir();
+    return p === root || p.startsWith(root + path.sep);
+  } catch (e) { return false; }
 }
 
 function createWindow() {
@@ -63,13 +74,14 @@ function createWindow() {
     }
   });
   win.webContents.setWindowOpenHandler(windowOpenHandler);
+  win.on("close", () => { try { const b = win.getBounds(); config.save({ window: { w: b.width, h: b.height } }); } catch (e) {} });
   if (!app.isPackaged && process.env.MDESK_DEV_URL) win.loadURL(process.env.MDESK_DEV_URL);
   else win.loadFile(path.join(__dirname, "..", "renderer", "dist", "index.html"));
 
   // Dev diagnostics: forward renderer console to the terminal.
   if (!app.isPackaged) {
-    win.webContents.on("console-message", (e) => {
-      const m = (e && (e.message !== undefined ? e.message : arguments[2]));
+    win.webContents.on("console-message", (e, _level, legacyMessage) => {
+      const m = (e && e.message !== undefined) ? e.message : legacyMessage;
       if (m !== undefined) console.log("[renderer]", m);
     });
     win.webContents.on("did-fail-load", (_e, code, desc, url) => console.log("[did-fail-load]", code, desc, url));
@@ -101,15 +113,21 @@ function createWindow() {
     }, ms));
   }
 
-  // Push ONLY status to the renderer (low frequency). Node logs are NOT streamed —
-  // Minima is extremely chatty and an IPC message per line froze the UI. The
-  // renderer pulls the ring buffer via `node:logs` on demand instead.
-  node.on("status", s => send("node:status", s));
 }
 
-// Every <webview> guest: dapp-to-dapp window.open becomes a tab; capture console in dev.
+// Push ONLY status to the renderer (low frequency). Node logs are NOT streamed — Minima is extremely
+// chatty and an IPC message per line froze the UI; the renderer pulls the ring buffer via `node:logs`.
+// Registered ONCE (createWindow re-runs on macOS "activate").
+node.on("status", s => send("node:status", s));
+
+// Every <webview> guest: dapp-to-dapp window.open becomes a tab; capture console in dev. Also refuse any
+// attempt (from a compromised renderer) to attach a webview with a preload or node integration.
 app.on("web-contents-created", (_e, contents) => {
   try {
+    contents.on("will-attach-webview", (_ev, prefs) => {
+      delete prefs.preload; delete prefs.preloadURL;
+      prefs.nodeIntegration = false; prefs.contextIsolation = true; prefs.webSecurity = true;
+    });
     if (contents.getType && contents.getType() === "webview") {
       contents.setWindowOpenHandler(windowOpenHandler);
       if (!app.isPackaged) {
@@ -145,7 +163,7 @@ if (!gotLock) {
   app.whenReady().then(() => {
     trustLoopbackMds();
     createWindow();
-    node.start();
+    node.start().catch(() => {});
     app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
   });
 }
@@ -153,20 +171,29 @@ if (!gotLock) {
 // ---- IPC proxy: renderer → node (auth injected here) ----
 ipcMain.on("diag", (_e, m) => { if (!app.isPackaged) console.log("[R]", m); });
 ipcMain.handle("node:snapshot", () => node.snapshot());
-ipcMain.handle("node:logs", () => node.logs.slice(-300));
+ipcMain.handle("node:logs", () => node.logTail(300));
 ipcMain.handle("node:ports", () => ({ base: config.basePort(), rpc: config.rpcPort(), mds: config.mdsPort(), appVersion: app.getVersion() }));
 ipcMain.handle("node:stop", async (_e, compact) => { try { await node.stop({ compact: !!compact }); return { status: true }; } catch (e) { return { status: false, error: e.message }; } });
 ipcMain.handle("node:restart", async () => { try { await node.restart(); return { status: true }; } catch (e) { return { status: false, error: e.message }; } });
 
 /** Run any node command over RPC (management: mds action:list / install / uninstall, maxima, status…). */
+/** Remove every `password` key anywhere in a reply (the node's `mds` reply carries the MDS password, and
+ *  a `;`-chained command such as `status;mds` comes back as an ARRAY of replies). */
+function scrubPasswords(v, depth = 0) {
+  if (depth > 12 || !v || typeof v !== "object") return v;
+  if (Array.isArray(v)) { v.forEach((x) => scrubPasswords(x, depth + 1)); return v; }
+  if (typeof v.password === "string") delete v.password;
+  for (const k of Object.keys(v)) scrubPasswords(v[k], depth + 1);
+  return v;
+}
 ipcMain.handle("rpc:cmd", async (_e, command) => {
+  const cmd = String(command);
   try {
-    const r = await rpcCall(config.rpcPort(), config.rpcSecret(), String(command));
-    // The `mds` reply carries the MDS password — a secret the renderer must never see.
-    if (r && r.response && typeof r.response === "object" && "password" in r.response && /^\s*mds\b/i.test(String(command))) {
-      delete r.response.password;
-    }
-    return r;
+    const r = await rpcCall(config.rpcPort(), config.rpcSecret(), cmd);
+    // A dapp updated in place keeps its uid — drop its cached icon so the new one shows.
+    const upd = /^\s*mds\s+action:update\b[^;]*\buid:(0x[0-9A-Fa-f]+)/i.exec(cmd);
+    if (upd) iconcache.evictUid(upd[1]);
+    return /(^|;)\s*mds\b/i.test(cmd) ? scrubPasswords(r) : r;
   } catch (e) { return { status: false, error: e.message }; }
 });
 
@@ -202,7 +229,11 @@ ipcMain.handle("mds:install", async () => {
   });
   if (r.canceled || !r.filePaths || !r.filePaths.length) return { status: false, cancelled: true };
   const file = r.filePaths[0];
-  try { return await rpcCall(config.rpcPort(), config.rpcSecret(), 'mds action:install file:"' + file + '"'); }
+  // The node's parser toggles quoting on a `"` inside the value and accepts extra tokens as params, so a
+  // filename containing a quote could smuggle `trust:write`. Refuse it, and always state trust:read.
+  if (/["\r\n]/.test(file)) return { status: false, error: "file path contains a quote or newline — rename the file" };
+  if (!/\.zip$/i.test(file)) return { status: false, error: "not a .mds.zip file" };
+  try { return await rpcCall(config.rpcPort(), config.rpcSecret(), 'mds action:install file:"' + file + '" trust:read'); }
   catch (e) { return { status: false, error: e.message }; }
 });
 
@@ -246,26 +277,29 @@ ipcMain.handle("shell:open", async (_e, url) => {
   const u = String(url || "");
   try {
     if (/^https?:\/\//i.test(u)) { await shell.openExternal(u); return { status: true }; }
-    if (/^file:\/\//i.test(u)) { await shell.openPath(decodeURIComponent(new URL(u).pathname)); return { status: true }; }
+    if (/^file:\/\//i.test(u) && isInsideRendererDist(u)) { await shell.openPath(decodeURIComponent(new URL(u).pathname)); return { status: true }; }
     return { status: false, error: "unsupported url" };
   } catch (e) { return { status: false, error: e.message }; }
 });
 
-// ---- MDS icon proxy: fetch a dapp icon from the loopback MDS server (self-signed TLS) and
-// return it as a data: URL. Loading icons via <img src="https://127.0.0.1:mds/…"> in the
-// renderer fails the self-signed cert intermittently (TLS handshake errors); fetching in main
-// with rejectUnauthorized:false and handing back a data URL makes every icon resolve, cached. ----
-const iconCache = new Map();
+// ---- MDS icon proxy: fetch a dapp icon from the loopback MDS server (self-signed TLS) and return it as
+// a data: URL. <img src="https://127.0.0.1:mds/…"> in the renderer fails the self-signed cert
+// intermittently; fetching in main with rejectUnauthorized:false and handing back a data URL makes every
+// icon resolve, cached (main/iconcache.js). Pinned to OUR MDS port, timed out, and size-capped. ----
+const ICON_TIMEOUT_MS = 8000;
+const ICON_MAX_BYTES = 2 * 1024 * 1024;
 function fetchLoopback(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, { rejectUnauthorized: false, agent: false }, (r) => {
+    const req = https.get(url, { rejectUnauthorized: false, agent: false, timeout: ICON_TIMEOUT_MS }, (r) => {
       if (r.statusCode < 200 || r.statusCode >= 300) { r.resume(); return reject(new Error("HTTP " + r.statusCode)); }
       const ct = r.headers["content-type"] || "";
-      const chunks = [];
-      r.on("data", (c) => chunks.push(c));
+      const chunks = []; let total = 0;
+      r.on("data", (c) => { total += c.length; if (total > ICON_MAX_BYTES) { req.destroy(new Error("icon too large")); return; } chunks.push(c); });
       r.on("end", () => resolve({ buf: Buffer.concat(chunks), ct }));
       r.on("error", reject);
-    }).on("error", reject);
+    });
+    req.on("timeout", () => req.destroy(new Error("icon fetch timeout")));
+    req.on("error", reject);
   });
 }
 function guessMime(u) {
@@ -279,15 +313,14 @@ function guessMime(u) {
 }
 ipcMain.handle("mds:icon", async (_e, url) => {
   const u = String(url || "");
-  if (!/^https:\/\/(127\.0\.0\.1|localhost):/.test(u)) return "";
-  if (iconCache.has(u)) return iconCache.get(u);
+  if (!isLoopbackMdsUrl(u) || !/^https:/i.test(u)) return "";
+  if (iconcache.has(u)) return iconcache.get(u);
   try {
     const { buf, ct } = await fetchLoopback(u);
     if (!buf || !buf.length) return "";
     const mime = ct && /^image\//.test(ct) ? ct : guessMime(u);
     const durl = "data:" + mime + ";base64," + buf.toString("base64");
-    if (iconCache.size > 500) iconCache.clear();
-    iconCache.set(u, durl);
+    iconcache.set(u, durl);
     return durl;
   } catch (e) { return ""; }
 });

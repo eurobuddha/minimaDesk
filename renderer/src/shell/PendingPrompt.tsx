@@ -15,14 +15,16 @@ export default function PendingPrompt() {
   return (
     <FixedModal display={!!p} frosted>
       {p && (
-        <div className="text-center">
+        <div className="text-center" role="dialog" aria-modal="true" aria-label="Permission request">
           <h1 className="text-2xl mb-2">{dapp ? dapp.name : 'A MiniDapp'}{dapp && dapp.version ? <span className="text-core-grey-80 text-base"> v{dapp.version}</span> : null}</h1>
           <p className="text-core-grey-20 mb-4">{isInstall ? 'wants to install a MiniDapp' : 'wants to run a command that needs write permission'}</p>
-          {!isInstall && <code className="pending-cmd text-left">{p.command}</code>}
-          {isInstall && <code className="pending-cmd text-left">{p.command}</code>}
+          {/* the full command, always — never truncated */}
+          <code className="pending-cmd text-left">{p.command}</code>
           <Button onClick={() => acceptPending(p.uid)}>Allow</Button>
           <div className="mt-3"><Button variant="secondary" onClick={() => denyPending(p.uid)}>Deny</Button></div>
-          <div className="mt-4 text-sm text-core-grey-80 cursor-pointer hover:text-white" onClick={() => snoozePending(p.uid)}>Decide later (stays in Pending)</div>
+          <button type="button" className="mt-4 text-sm text-core-grey-80 hover:text-white bg-transparent" onClick={() => snoozePending(p.uid)}>
+            Decide later (stays in Pending)
+          </button>
         </div>
       )}
     </FixedModal>

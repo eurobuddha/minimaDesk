@@ -17,7 +17,7 @@ contextBridge.exposeInMainWorld("minima", {
 
   // node lifecycle / status
   snapshot: () => invoke("node:snapshot"),
-  logs: () => invoke("node:logs"),
+  logs: () => invoke("node:logs"),               // { seq, lines } — seq is monotonic across the ring buffer
   ports: () => invoke("node:ports"),
   onStatus: (cb) => subscribe("node:status", cb),
   nodeStop: (compact) => invoke("node:stop", !!compact),

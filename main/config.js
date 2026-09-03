@@ -50,10 +50,16 @@ function load() {
   try { j = JSON.parse(fs.readFileSync(configPath(), "utf8")); } catch (e) { /* first run */ }
   return Object.assign({}, DEFAULTS, j);
 }
+/** Crash-safe: write a sibling temp file, then rename over config.json (rename is atomic on one volume). */
+function writeAtomic(file, text, mode) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = file + ".tmp";
+  fs.writeFileSync(tmp, text, { mode });
+  fs.renameSync(tmp, file);
+}
 function save(patch) {
   const merged = Object.assign(load(), patch || {});
-  fs.mkdirSync(app.getPath("userData"), { recursive: true });
-  fs.writeFileSync(configPath(), JSON.stringify(merged, null, 2), { mode: 0o600 });
+  writeAtomic(configPath(), JSON.stringify(merged, null, 2), 0o600);
   return merged;
 }
 
@@ -90,7 +96,7 @@ function rpcSecret() { return ensureSecret("rpc.secret"); }
 function mdsPassword() { return ensureSecret("mds.secret"); }
 
 module.exports = {
-  load, save, defaultDataFolder,
+  load, save, writeAtomic, defaultDataFolder,
   basePort, rpcPort, mdsPort,
   rpcSecret, mdsPassword
 };

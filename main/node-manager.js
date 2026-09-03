@@ -6,9 +6,15 @@
  * difference: we run the FULL classic jar with **MDS ENABLED** (and Maxima, which classic always runs on the
  * node's base port) — so real MiniDapps install and serve, and Maxima rides the node's own port.
  *
+ * Secrets never go on the command line (visible to every local process via `ps`): the RPC and MDS
+ * passwords are written to a 0600 conf file each start and the jar reads them with `-conf`.
+ *
  * Network role (Settings → Network): with `contribute` on, the node runs `-server` (accepts inbound P2P,
  * and thereby acts as a Maxima host for others) and portmap.js asks the router to open the P2P port.
  * Only a real incoming peer proves reachability — see the `network` poll below.
+ *
+ * Every async loop here is generation-guarded: a stop()/restart() bumps the generation and any reply
+ * still in flight from the previous life is ignored, so a planned stop can never be reported as a crash.
  *
  * Stop is graceful: RPC `quit` (clean H2/db shutdown) → SIGTERM → SIGKILL fallback.
  */
@@ -21,12 +27,14 @@ const config = require("./config");
 const { rpcCall } = require("./rpc");
 const { provisionBundledDapps } = require("./provision");
 const portmap = require("./portmap");
-const { DEFAULT_RELAY, isHostPort } = require("./relays");
+const { DEFAULT_RELAY, isHostPort, isMlsIdentity } = require("./relays");
 
 const LOG_MAX_LINES = 800;
 const HEALTH_EVERY_MS = 8_000;
 const NET_RESTART_COOLDOWN_MS = 10 * 60_000;
 const MAXIMA_REFRESH_MS = 15 * 60 * 1000;           // periodic MLS refresh so cached contact addresses don't go stale
+const ADOPTED_DEAD_AFTER = 3;                       // consecutive failed polls before an adopted node is declared gone
+const PROVISION_MAX_TRIES = 60;                     // ~8 min of MDS not answering before we stop trying this run
 
 function tokenizeArgs(s) {
   if (!s || typeof s !== "string") return [];
@@ -41,6 +49,14 @@ function currentRelay() {
   return isHostPort(r) ? r : DEFAULT_RELAY;
 }
 
+/** `maxima action:info` reports staticmls either as the host string or as `true` with the host in `mls`. */
+function pinnedMls(info) {
+  if (!info) return "";
+  if (isMlsIdentity(info.staticmls)) return String(info.staticmls);
+  if (info.staticmls === true && isMlsIdentity(info.mls)) return String(info.mls);
+  return "";
+}
+
 class NodeManager extends EventEmitter {
   constructor() {
     super();
@@ -48,12 +64,18 @@ class NodeManager extends EventEmitter {
     this.state = "stopped";      // stopped | starting | running | stopping | error
     this.lastError = null;
     this.logs = [];
+    this.logSeq = 0;             // total lines ever logged — lets the renderer "clear" without losing new lines
     this.health = null;          // { version, block, connections, locked, maxima, incoming, acceptingInLinks, p2pAddress }
     this.healthTimer = null;
+    this.healthGen = 0;          // bumped by stopHealth(); in-flight polls from an older generation are ignored
     this.healthTick = 0;
+    this.healthFailures = 0;
     this.startedTs = 0;
     this.adopted = false;        // true when we attached to a node a previous instance left running
+    this.startPromise = null;    // start() in progress (adopt probe / spawn) — restart() must wait for it
     this.maximaSetupDone = false;// true once we've wired the node to the relay this run
+    this.maximaRefreshTimer = null;
+    this.healChain = Promise.resolve();   // heals are serialised — two at once race on the static-MLS pin
     this.provisionDone = false;  // bundled dapps (App Store, Terminal IDE) installed / updated this run
     this.provisionBusy = false;
     this.provisionTries = 0;
@@ -68,7 +90,7 @@ class NodeManager extends EventEmitter {
       const nowMapped = st.state === "mapped";
       const becameMapped = nowMapped && !this.wasMapped;
       this.wasMapped = nowMapped;
-      if (becameMapped && (this.proc || this.adopted) && this.startedTs && Date.now() - this.startedTs > 70 * 60_000 &&
+      if (becameMapped && this.alive() && this.startedTs && Date.now() - this.startedTs > 70 * 60_000 &&
           this.health && this.health.acceptingInLinks === false &&
           Date.now() - this.lastNetRestart > NET_RESTART_COOLDOWN_MS) {
         this.lastNetRestart = Date.now();
@@ -78,6 +100,9 @@ class NodeManager extends EventEmitter {
       this.emit("status", this.snapshot());
     });
   }
+
+  /** A node we own or adopted, and not on its way down. */
+  alive() { return (!!this.proc || this.adopted) && this.state !== "stopping" && this.state !== "stopped"; }
 
   jarPath() {
     return app.isPackaged
@@ -92,6 +117,14 @@ class NodeManager extends EventEmitter {
     return fs.existsSync(bundled) ? bundled : "java";
   }
 
+  /** The secrets go in a 0600 conf file (key=value lines, same names as the -flags), never on argv. */
+  writeConfFile() {
+    const file = path.join(app.getPath("userData"), "node.conf");
+    const text = "rpcpassword=" + config.rpcSecret() + "\n" + "mdspassword=" + config.mdsPassword() + "\n";
+    config.writeAtomic(file, text, 0o600);
+    return file;
+  }
+
   buildArgs() {
     const cfg = config.load();
     const dataDir = cfg.dataFolder || config.defaultDataFolder();
@@ -99,15 +132,14 @@ class NodeManager extends EventEmitter {
     // Cap the JVM heap — a fresh node running the default MDS services can otherwise
     // balloon RAM and jank the whole machine (JVM flags must precede -jar).
     const args = ["-Xmx1500m", "-Xms256m", "-jar", this.jarPath(),
+      "-conf", this.writeConfFile(),
       "-data", dataDir,
       "-basefolder", dataDir,
       "-port", String(config.basePort()),
       "-rpc", String(config.rpcPort()),
       "-rpcenable", "true",
-      "-rpcpassword", config.rpcSecret(),
       // MDS: the MiniDapp System — install + serve real MiniDapps. Off in stock; we turn it on.
       "-mdsenable",
-      "-mdspassword", config.mdsPassword(),
       "-daemon", "true"];
     // Contribute to the network: accept inbound P2P (the jar's -server role). Never alongside -isclient /
     // -mobile — their ordering in the jar's ParamConfigurer is a HashMap accident.
@@ -116,8 +148,16 @@ class NodeManager extends EventEmitter {
     return args;
   }
 
-  async start() {
-    if (this.proc || this.adopted) return;
+  start() {
+    if (this.startPromise) return this.startPromise;
+    if (this.proc || this.adopted) return Promise.resolve();
+    this.startPromise = this._start()
+      .catch((e) => { this.lastError = "could not start node: " + (e && e.message ? e.message : String(e)); this.setState("error"); })
+      .finally(() => { this.startPromise = null; });
+    return this.startPromise;
+  }
+
+  async _start() {
     this.lastError = null;
     this.setState("starting");
     // Adopt an already-running node before spawning. A previous minimaDesk instance
@@ -134,9 +174,9 @@ class NodeManager extends EventEmitter {
         return;
       }
     } catch (e) { /* nothing there — spawn our own */ }
+    if (this.state === "stopping" || this.state === "stopped") return;   // stop() raced the adopt probe
     const args = this.buildArgs();
-    this.log("[app] starting node: java " + args.join(" ")
-      .replace(config.rpcSecret(), "•••").replace(config.mdsPassword(), "•••"));
+    this.log("[app] starting node: java " + args.join(" "));   // no secrets on argv any more (see -conf)
     let p;
     try { p = spawn(this.javaPath(), args, { stdio: ["ignore", "pipe", "pipe"] }); }
     catch (e) { this.lastError = "could not launch java: " + e.message; this.setState("error"); return; }
@@ -144,8 +184,16 @@ class NodeManager extends EventEmitter {
     this.startedTs = Date.now();
     p.stdout.on("data", d => this.log(String(d)));
     p.stderr.on("data", d => this.log(String(d)));
-    p.on("error", e => { this.lastError = e.message; this.setState("error"); this.proc = null; });
+    p.on("error", e => {
+      // e.g. ENOENT for java — no `exit` follows, so clean up here exactly as the exit handler does.
+      if (this.proc !== p) return;
+      this.proc = null;
+      this.stopHealth();
+      portmap.stop().catch(() => {});
+      this.lastError = e.message; this.setState("error");
+    });
     p.on("exit", (code, sig) => {
+      if (this.proc !== p) return;                 // an older child (after a racing restart) — ignore
       this.log("[app] node exited code=" + code + " sig=" + sig);
       this.proc = null;
       this.stopHealth();
@@ -161,13 +209,25 @@ class NodeManager extends EventEmitter {
   }
 
   async stop(opts = {}) {
+    if (this.startPromise) { try { await this.startPromise; } catch (e) {} }
     // Release the router mapping first — it must not outlive the node.
     try { await portmap.stop(); } catch (e) {}
     // `compact:true` asks the node to compact its databases on the way down (hub Settings → Shutdown node).
     const quitCmd = opts && opts.compact ? "quit compact:true" : "quit";
-    // Adopted node (no child process of ours): stop it over RPC so we don't orphan it.
     if (!this.proc) {
-      if (this.adopted) { try { await rpcCall(config.rpcPort(), config.rpcSecret(), quitCmd); } catch (e) {} this.adopted = false; this.stopHealth(); }
+      if (this.adopted) {
+        // Adopted node (no child process of ours): stop it over RPC, then WAIT until it is really gone —
+        // otherwise a restart() would re-adopt a node that is mid-shutdown.
+        this.setState("stopping");
+        this.stopHealth();
+        try { await rpcCall(config.rpcPort(), config.rpcSecret(), quitCmd); } catch (e) {}
+        const deadline = Date.now() + 25_000;
+        while (Date.now() < deadline) {
+          await new Promise(res => setTimeout(res, 500));
+          try { await rpcCall(config.rpcPort(), config.rpcSecret(), "status"); } catch (e) { break; }   // refused = gone
+        }
+        this.adopted = false;
+      }
       this.setState("stopped"); return;
     }
     this.setState("stopping");
@@ -180,7 +240,7 @@ class NodeManager extends EventEmitter {
     try { await rpcCall(config.rpcPort(), config.rpcSecret(), quitCmd); } catch (e) { /* signals will catch it */ }
     await gone;
   }
-  async restart() { await this.stop(); this.start(); }
+  async restart() { await this.stop(); await this.start(); }
 
   // ---- network role (Settings → Network) ----
 
@@ -207,8 +267,9 @@ class NodeManager extends EventEmitter {
         for (const c of (Array.isArray(n.connections) ? n.connections : [])) {
           const byPort = String(c.host || "") + ":" + String(c.port || "");
           const byMinimaPort = String(c.host || "") + ":" + String(c.minimaport || "");
-          if (byPort === prev || byMinimaPort === prev) {
-            if (c.uid) { await rpc("disconnect uid:" + c.uid).catch(() => {}); this.log("[app] disconnected previous relay " + prev); }
+          if ((byPort === prev || byMinimaPort === prev) && /^[0-9A-Za-z]+$/.test(String(c.uid || ""))) {
+            await rpc("disconnect uid:" + c.uid).catch(() => {});
+            this.log("[app] disconnected previous relay " + prev);
           }
         }
       }
@@ -223,7 +284,7 @@ class NodeManager extends EventEmitter {
   async setMls(mode, custom) {
     const m = ["relay", "custom", "host"].includes(mode) ? mode : "relay";
     const c = String(custom || "").trim();
-    if (m === "custom" && !/^Mx[0-9A-Za-z]+@.+:\d+$/.test(c)) return { status: false, error: "needs the form Mx…@host:port" };
+    if (m === "custom" && !isMlsIdentity(c)) return { status: false, error: "needs the form Mx…@host:port" };
     config.save({ mls: { mode: m, custom: c } });
     const rpc = (cmd) => rpcCall(config.rpcPort(), config.rpcSecret(), cmd);
     try {
@@ -237,13 +298,18 @@ class NodeManager extends EventEmitter {
   // ---- health ----
   startHealth() {
     this.stopHealth();
+    const gen = ++this.healthGen;
+    const live = () => gen === this.healthGen && this.alive();
     const poll = async () => {
-      if (!this.proc && !this.adopted) return;
+      if (!live()) return;
       try {
         const j = await rpcCall(config.rpcPort(), config.rpcSecret(), "status");
+        if (!live()) return;
         const r = (j && j.response) || {};
         let maxima = false;
         try { const mx = await rpcCall(config.rpcPort(), config.rpcSecret(), "maxima action:info"); maxima = !!(mx && mx.status); } catch (e) {}
+        if (!live()) return;
+        this.healthFailures = 0;
         const prev = this.health || {};
         this.health = {
           version: r.version || "",
@@ -262,6 +328,7 @@ class NodeManager extends EventEmitter {
         if (config.load().contribute && this.healthTick++ % 3 === 0) {
           try {
             const n = await rpcCall(config.rpcPort(), config.rpcSecret(), "network");
+            if (!live()) return;
             const nr = (n && n.response) || {};
             const p2p = (nr.details && nr.details.p2p) || {};
             const conns = Array.isArray(nr.connections) ? nr.connections : [];
@@ -279,39 +346,60 @@ class NodeManager extends EventEmitter {
         }
         if (this.state !== "running") this.setState("running"); else this.emit("status", this.snapshot());
         // Bundled dapps: install / update once MDS answers (retries on later ticks until it does).
-        if (!this.provisionDone && !this.provisionBusy && this.provisionTries < 20) {
-          this.provisionBusy = true; this.provisionTries++;
-          provisionBundledDapps({
-            rpc: (c) => rpcCall(config.rpcPort(), config.rpcSecret(), c),
-            log: (l) => this.log(l),
-            skipCatalog: !app.isPackaged && !!process.env.MDESK_NO_CATALOG
-          }).then((r) => {
-            if (r && r.ready) { this.provisionDone = true; this.emit("status", this.snapshot()); }
-            else this.log("[app] dapps: MDS not ready yet — retrying next tick");
-          }).catch((e) => { this.provisionDone = true; this.log("[app] dapps: provisioning failed: " + e.message); })
-            .finally(() => { this.provisionBusy = false; });
+        if (!this.provisionDone && !this.provisionBusy) {
+          if (this.provisionTries >= PROVISION_MAX_TRIES) {
+            this.provisionDone = true;
+            this.log("[app] dapps: MDS never answered — giving up on provisioning this run (Store / Terminal buttons need a restart)");
+          } else {
+            this.provisionBusy = true; this.provisionTries++;
+            provisionBundledDapps({
+              rpc: (c) => rpcCall(config.rpcPort(), config.rpcSecret(), c),
+              log: (l) => this.log(l),
+              skipCatalog: !app.isPackaged && !!process.env.MDESK_NO_CATALOG
+            }).then((res) => {
+              if (!live()) return;
+              if (res && res.ready) { this.provisionDone = true; this.emit("status", this.snapshot()); }
+              else if (this.provisionTries % 5 === 0) this.log("[app] dapps: MDS not ready yet — still retrying");
+            }).catch((e) => { this.provisionDone = true; this.log("[app] dapps: provisioning failed: " + e.message); })
+              .finally(() => { this.provisionBusy = false; });
+          }
         }
         // Once Maxima is up, wire the node to the relay so inbound is forwarded (one-time).
-        if (maxima && !this.maximaSetupDone) { this.maximaSetupDone = true; this.setupMaximaRelays(); }
-      } catch (e) { /* still booting — keep state */ }
+        if (maxima && !this.maximaSetupDone) { this.maximaSetupDone = true; this.setupMaximaRelays(gen); }
+      } catch (e) {
+        if (!live()) return;
+        // An adopted node has no child `exit` event — repeated refusals are the only sign it died.
+        if (this.adopted && ++this.healthFailures >= ADOPTED_DEAD_AFTER) {
+          this.log("[app] adopted node stopped answering — marking it gone");
+          this.adopted = false;
+          this.stopHealth();
+          portmap.stop().catch(() => {});
+          this.lastError = "the adopted node stopped answering";
+          this.setState("error");
+        }
+        /* otherwise: still booting or busy — keep the current state */
+      }
     };
     poll();
     this.healthTimer = setInterval(poll, HEALTH_EVERY_MS);
   }
   stopHealth() {
+    this.healthGen++;
     if (this.healthTimer) { clearInterval(this.healthTimer); this.healthTimer = null; }
     if (this.maximaRefreshTimer) { clearInterval(this.maximaRefreshTimer); this.maximaRefreshTimer = null; }
     this.maximaSetupDone = false;
     this.provisionDone = false;
     this.provisionTries = 0;
+    this.healthFailures = 0;
     this.health = null;
   }
 
   // Connect the node to the user's Maxima relay so inbound Maxima is forwarded even behind NAT,
   // pin a stable static MLS, then keep contact addresses fresh. Runtime-only (connect / maxextra /
   // maxima refresh) — never touches startup args or chain P2P.
-  async setupMaximaRelays() {
+  async setupMaximaRelays(gen) {
     await this.healMaxima();
+    if (gen !== this.healthGen) return;              // stopped while the first heal was running
     // Periodic heal: a contact we hear from often is marked "seen", so the node's 30-min staleness
     // gate never re-resolves its address — and if that contact (e.g. a phone that changed networks)
     // rotates its host, our cached address goes stale and sends silently fail. A periodic heal
@@ -320,9 +408,14 @@ class NodeManager extends EventEmitter {
     this.maximaRefreshTimer = setInterval(() => { this.healMaxima().catch(() => {}); }, MAXIMA_REFRESH_MS);
   }
 
-  // Reconnect the relay, apply the static-MLS policy, and force-refresh every contact's live
-  // address. Safe to call anytime — this is the "Heal Maxima" action (great after a network change).
-  async healMaxima() {
+  /** Reconnect the relay, apply the static-MLS policy, force-refresh every contact's live address.
+   *  Serialised: the periodic timer, the UI button, setMaximaRelay and setMls may all ask at once. */
+  healMaxima() {
+    const run = this.healChain.then(() => this._heal(), () => this._heal());
+    this.healChain = run.catch(() => {});
+    return run;
+  }
+  async _heal() {
     const rpc = (c) => rpcCall(config.rpcPort(), config.rpcSecret(), c);
     const relay = currentRelay();
     const mls = config.load().mls || { mode: "relay", custom: "" };
@@ -330,17 +423,15 @@ class NodeManager extends EventEmitter {
       try { await rpc("connect host:" + relay); } catch (e) {}
       await new Promise(res => setTimeout(res, 3500));
       const info = (await rpc("maxima action:info").catch(() => ({}))).response || {};
-      // staticmls comes back as the host, or as `true` with the host in `mls`
-      const isHost = (v) => typeof v === "string" && /^Mx.+@.+:\d+$/.test(v);
-      const pinnedNow = isHost(info.staticmls) ? info.staticmls : (info.staticmls === true && isHost(info.mls) ? info.mls : "");
+      const pinnedNow = pinnedMls(info);
       if (mls.mode === "relay") {
         const hosts = ((await rpc("maxima action:hosts").catch(() => ({}))).response || {}).hosts || [];
         const r = hosts.find(h => h.host === relay && h.connected);
-        if (r && r.address && /^Mx.+@.+:\d+$/.test(r.address) && pinnedNow !== r.address) {
+        if (r && isMlsIdentity(r.address) && pinnedNow !== r.address) {
           await rpc("maxextra action:staticmls host:" + r.address);
           this.log("[app] pinned static MLS to relay " + relay);
         }
-      } else if (mls.mode === "custom" && mls.custom && pinnedNow !== mls.custom) {
+      } else if (mls.mode === "custom" && isMlsIdentity(mls.custom) && pinnedNow !== mls.custom) {
         await rpc("maxextra action:staticmls host:" + mls.custom);
         this.log("[app] pinned static MLS to " + mls.custom);
       }
@@ -360,11 +451,17 @@ class NodeManager extends EventEmitter {
              rpcPort: config.rpcPort(), mdsPort: config.mdsPort(), basePort: config.basePort(),
              uptimeMs: (this.proc || this.adopted) && this.startedTs ? Date.now() - this.startedTs : 0 };
   }
+  /** Ring-buffer tail with a monotonic sequence so the renderer can "clear" by position, not by text. */
+  logTail(n = 300) {
+    const lines = this.logs.slice(-n);
+    return { seq: this.logSeq, lines };
+  }
   log(line) {
     for (let l of String(line).split("\n")) {
       if (!l.trim()) continue;
       l = l.replace(/phrase:"[^"]*"/g, 'phrase:"•••"').replace(/privatekey:0x[0-9A-Fa-f]+/g, "privatekey:•••");
       this.logs.push(l.length > 400 ? l.slice(0, 400) + "…" : l);
+      this.logSeq++;
       if (process.env.MDESK_NODELOG) { try { fs.appendFileSync(process.env.MDESK_NODELOG, l + "\n"); } catch (e) {} }
     }
     if (this.logs.length > LOG_MAX_LINES) this.logs.splice(0, this.logs.length - LOG_MAX_LINES);

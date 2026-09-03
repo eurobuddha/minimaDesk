@@ -15,9 +15,20 @@ const KNOWN_RELAYS = [
 ];
 const DEFAULT_RELAY = KNOWN_RELAYS[0].host;
 
-/** host:port with a numeric port and a hostname/IPv4 (no scheme, no path). */
+/** host:port — hostname or IPv4, port 1–65535, nothing else (this string goes into node commands). */
 function isHostPort(s) {
-  return /^[A-Za-z0-9.\-]+:\d{1,5}$/.test(String(s || "").trim());
+  const m = /^([A-Za-z0-9.\-]{1,253}):(\d{1,5})$/.exec(String(s || "").trim());
+  if (!m) return false;
+  const port = parseInt(m[2], 10);
+  return port >= 1 && port <= 65535;
 }
 
-module.exports = { KNOWN_RELAYS, DEFAULT_RELAY, isHostPort };
+/** A Maxima Location Service identity: Mx<base32>@host:port, nothing else. */
+function isMlsIdentity(s) {
+  const m = /^Mx[0-9A-Z]{20,}@([A-Za-z0-9.\-]{1,253}):(\d{1,5})$/.exec(String(s || "").trim());
+  if (!m) return false;
+  const port = parseInt(m[2], 10);
+  return port >= 1 && port <= 65535;
+}
+
+module.exports = { KNOWN_RELAYS, DEFAULT_RELAY, isHostPort, isMlsIdentity };

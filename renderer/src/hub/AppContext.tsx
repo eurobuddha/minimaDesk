@@ -24,6 +24,7 @@ export const appContext = createContext({} as any);
 
 const AppProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const loaded = useRef(false);
+  const refreshSeq = useRef(0);   // minimaDesk: icon resolution is async — never let an older list overwrite a newer one
 
   const [maximaName, setMaximaName] = useState('');
 
@@ -198,7 +199,11 @@ const AppProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
         },
       ];
 
-      // minimaDesk: resolve icons through main as data URLs (the self-signed MDS cert makes <img> flaky)
+      // minimaDesk: paint the list immediately (stock behaviour), then resolve icons through main as data
+      // URLs (the self-signed MDS cert makes <img> flaky) and paint again — unless a newer refresh has run.
+      const seq = ++refreshSeq.current;
+      const byName = (a: any, b: any) => a.conf.name.localeCompare(b.conf.name);
+      setAppList([...apps].sort(byName));
       const mdsHost = (window as any).MDS.filehost;
       await Promise.all(
         apps
@@ -216,6 +221,10 @@ const AppProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
             }
           })
       );
+
+      if (seq !== refreshSeq.current) {
+        return true;                       // a newer refresh already painted — don't rewind to this one
+      }
 
       setMiniHUB(
         response.minidapps.find(

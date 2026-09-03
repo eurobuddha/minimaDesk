@@ -1,6 +1,5 @@
 {
   "0": "node-manager.js",
-  "1": "Wallpaper/index.tsx",
   "2": "package.json",
   "3": "Dashboard/index.tsx",
   "4": "config.js",
@@ -10,7 +9,7 @@
   "8": "AppContext.tsx",
   "9": "MinimaBridge",
   "10": "compilerOptions",
-  "11": "MaximaProfile/index.tsx",
+  "11": "StatusBar/index.tsx",
   "12": "provision.js",
   "13": "minimaDesk",
   "14": "preload.js",
@@ -23,7 +22,7 @@
   "21": "minimaDesk — working rules",
   "22": "sync-bundled-dapps.sh",
   "23": "manifest.json",
-  "24": "portmap.js",
+  "24": "PortMapper",
   "25": "AppList/index.tsx",
   "26": "App.tsx"
 }

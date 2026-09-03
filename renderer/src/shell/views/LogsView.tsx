@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 
-/** Node log ring buffer, pulled every 4 s while visible (never streamed — Minima is too chatty for IPC-per-line). */
+/**
+ * Node log ring buffer, pulled every 4 s while visible (never streamed — Minima is too chatty for IPC-per-line).
+ * "Clear" remembers the buffer's sequence number at that moment; later pulls show only lines logged after it,
+ * so identical lines and buffer roll-over cannot un-clear the view.
+ */
 export default function LogsView({ active }: { active: boolean }) {
   const [lines, setLines] = useState<string[]>([]);
   const [follow, setFollow] = useState(true);
-  const marker = useRef<string | null>(null); // "Clear" hides everything up to this line until the buffer rolls past it
+  const clearedAt = useRef(0);        // logSeq at the time of the last Clear
   const preRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -12,14 +16,12 @@ export default function LogsView({ active }: { active: boolean }) {
     let alive = true;
     const pull = async () => {
       try {
-        const ls = await window.minima.logs();
-        if (!alive || !Array.isArray(ls)) return;
-        let view = ls;
-        if (marker.current) {
-          const ix = ls.lastIndexOf(marker.current);
-          view = ix >= 0 ? ls.slice(ix + 1) : ls;
-        }
-        setLines(view);
+        const r = await window.minima.logs();
+        if (!alive || !r || !Array.isArray(r.lines)) return;
+        const seq = Number(r.seq) || 0;
+        const firstSeq = seq - r.lines.length;               // sequence number of lines[0]
+        const skip = Math.max(0, Math.min(r.lines.length, clearedAt.current - firstSeq));
+        setLines(r.lines.slice(skip));
       } catch (e) {}
     };
     pull();
@@ -31,7 +33,10 @@ export default function LogsView({ active }: { active: boolean }) {
     if (follow && preRef.current) preRef.current.scrollTop = preRef.current.scrollHeight;
   }, [lines, follow]);
 
-  const clear = () => { marker.current = lines.length ? lines[lines.length - 1] : null; setLines([]); };
+  const clear = async () => {
+    try { const r = await window.minima.logs(); clearedAt.current = Number(r && r.seq) || 0; } catch (e) {}
+    setLines([]);
+  };
 
   return (
     <>

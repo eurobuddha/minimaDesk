@@ -19,6 +19,8 @@ export function installMdsShim(mdsPort: number) {
   let offDapps: (() => void) | null = null;
 
   const reply = (cb: any, r: any) => { if (typeof cb === 'function') cb(r); };
+  let latestList: any[] = [];                 // the shell's last `mds action:list` (via the bus)
+  bus.on('dapps', (l: any[]) => { latestList = Array.isArray(l) ? l : []; });
 
   const MDS: any = {
     __minimadesk: true,
@@ -55,6 +57,8 @@ export function installMdsShim(mdsPort: number) {
 
     dapplink(dappname: string, callback?: any) {
       const want = String(dappname || '').toLowerCase();
+      const hit = latestList.find((a) => a && a.conf && String(a.conf.name || '').toLowerCase() === want && a.sessionid);
+      if (hit) return reply(callback, { status: true, uid: hit.uid, sessionid: hit.sessionid, base: MDS.filehost + hit.uid + '/index.html?uid=' + hit.sessionid });
       minima.cmd('mds').then((r: any) => {
         const list: any[] = (r && r.status && r.response && r.response.minidapps) || [];
         const app = list.find((a) => a && a.conf && String(a.conf.name || '').toLowerCase() === want);
@@ -71,6 +75,8 @@ export function installMdsShim(mdsPort: number) {
     init(callback: any) {
       if (offBlock) offBlock();
       if (offDapps) offDapps();
+      // The status push carries only the block number; the hub also wants `date` and `timemilli` (StatusBar
+      // shows the block time), so one `block` RPC per new block is needed here.
       offBlock = bus.on('block', () => {
         minima.cmd('block').then((r: any) => {
           if (!r || !r.status || !r.response) return;

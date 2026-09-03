@@ -6,13 +6,14 @@ import { useEffect, useState } from 'react';
 import SlideScreen from '../../../../components/UI/SlideScreen';
 import Button from '../../../../components/UI/Button';
 import BackButton from '../_BackButton';
+import type { NodeSnapshot, Ports } from '../../../../../minima';
 
 type Props = { display: boolean; dismiss: () => void };
 
 export function MinimaDesk({ display, dismiss }: Props) {
   const minima = (window as any).minima;
-  const [ports, setPorts] = useState<any>(null);
-  const [status, setStatus] = useState<any>(null);
+  const [ports, setPorts] = useState<Ports | null>(null);
+  const [status, setStatus] = useState<NodeSnapshot | null>(null);
   const [healing, setHealing] = useState(false);
   const [healMsg, setHealMsg] = useState('');
   const [restarting, setRestarting] = useState(false);
@@ -39,9 +40,15 @@ export function MinimaDesk({ display, dismiss }: Props) {
     }
   };
 
+  const [restartMsg, setRestartMsg] = useState('');
   const restart = async () => {
     setRestarting(true);
-    try { await minima.nodeRestart(); } finally { setRestarting(false); }
+    setRestartMsg('');
+    try {
+      const r = await minima.nodeRestart();
+      setRestartMsg(r && r.status ? 'Node restarted.' : 'Restart failed: ' + ((r && r.error) || 'unknown error'));
+    } catch (e: any) { setRestartMsg('Restart failed: ' + (e && e.message ? e.message : String(e))); }
+    finally { setRestarting(false); }
   };
 
   const h = status && status.health;
@@ -104,6 +111,7 @@ export function MinimaDesk({ display, dismiss }: Props) {
                 <Button onClick={restart} disabled={restarting} variant="secondary">
                   {restarting ? 'Restarting…' : 'Restart node'}
                 </Button>
+                {restartMsg && <div className="mt-3 text-sm text-core-grey-80">{restartMsg}</div>}
               </div>
             </div>
           </div>

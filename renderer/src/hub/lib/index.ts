@@ -5,7 +5,11 @@
 
 /** Absolute path of a File chosen with <input type=file> (Electron webUtils.getPathForFile). */
 export function filePathOf(file: File): string {
-  return (window as any).minima.pathForFile(file);
+  const p = String((window as any).minima.pathForFile(file) || '');
+  if (!p) throw new Error('this file is not on disk — save it first, then choose it again');
+  // the node's parser toggles quoting on a `"` inside file:"…" — refuse rather than smuggle extra params
+  if (/["\r\n]/.test(p)) throw new Error('the file path contains a quote or newline — rename the file');
+  return p;
 }
 
 /** Icons resolved to data URLs by AppContext.refreshAppList (self-signed MDS cert makes <img> flaky). */

@@ -29,11 +29,11 @@ newest_zip() {
 }
 
 STORE=$(newest_zip "$APPSTORE_DIR")
-TERM=$(newest_zip "$TERMINAL_DIR")
+TERMINAL=$(newest_zip "$TERMINAL_DIR")
 
 rm -f "$OUT"/*.mds.zip
 cp "$APPSTORE_DIR/$(node -pe 'JSON.parse(process.argv[1]).file' "$STORE")" "$OUT/"
-cp "$TERMINAL_DIR/$(node -pe 'JSON.parse(process.argv[1]).file' "$TERM")" "$OUT/"
+cp "$TERMINAL_DIR/$(node -pe 'JSON.parse(process.argv[1]).file' "$TERMINAL")" "$OUT/"
 
 node -e '
   const s = JSON.parse(process.argv[1]), t = JSON.parse(process.argv[2]);
@@ -42,6 +42,6 @@ node -e '
     { name: t.name, file: t.file, version: t.version, write: true } ] };
   require("fs").writeFileSync(process.argv[3], JSON.stringify(m, null, 2) + "\n");
   console.log(JSON.stringify(m, null, 2));
-' "$STORE" "$TERM" "$OUT/manifest.json"
+' "$STORE" "$TERMINAL" "$OUT/manifest.json"
 
 echo "bundled dapps refreshed in $OUT"

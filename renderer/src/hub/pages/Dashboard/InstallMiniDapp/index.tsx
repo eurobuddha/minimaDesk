@@ -40,6 +40,11 @@ export function Install() {
     evt.preventDefault();
 
     if (file) {
+      // minimaDesk: the hub IS the app; a MiniHUB zip would install invisibly (the list filters it out)
+      if (file.name.toLowerCase().includes('minihub')) {
+        setError(true);
+        return;
+      }
       try {
         setError(false);
         setIsLoading(true);

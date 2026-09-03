@@ -1,7 +1,7 @@
 {
   "name": "minimadesk",
   "productName": "minimaDesk",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "A polished desktop MiniDapp platform \u2014 runs a full Minima classic node and opens installed MDS MiniDapps as tabs. MiniHub, in a party dress.",
   "author": "eurobuddha",
   "license": "MIT",
@@ -67,7 +67,6 @@
       "category": "public.app-category.finance",
       "icon": "build/icon.icns",
       "identity": null,
-      "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "target": [

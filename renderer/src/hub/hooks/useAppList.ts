@@ -43,6 +43,7 @@ const useAppList = () => {
     const handler = () => {
       // minimaDesk: the hub sits under a 44px tab strip — measure its own stage, not the window
       const stage = document.querySelector('.stage-home') as HTMLElement | null;
+      if (stage && (!stage.clientWidth || !stage.clientHeight)) return;   // hidden right now — keep the last layout
       const width = stage && stage.clientWidth ? stage.clientWidth : window.innerWidth;
       const height = stage && stage.clientHeight ? stage.clientHeight : window.innerHeight;
 
@@ -159,10 +160,16 @@ const useAppList = () => {
     };
 
     window.addEventListener('resize', handler);
+    // minimaDesk: the hub's stage is display:none while a dapp tab is active, so a window resize then
+    // measures 0×0 (falls back to the window). Re-measure when the stage gets its size back.
+    const stage = document.querySelector('.stage-home');
+    const ro = typeof ResizeObserver !== 'undefined' && stage ? new ResizeObserver(() => handler()) : null;
+    if (ro && stage) ro.observe(stage);
     handler();
 
     return () => {
       window.removeEventListener('resize', handler);
+      if (ro) ro.disconnect();
     };
   }, []);
 

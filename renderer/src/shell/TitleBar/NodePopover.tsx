@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useShell } from '../ShellContext';
+import { useEffect, useRef, useState } from 'react';
+import { useShell, useShellStatus } from '../ShellContext';
 
 function fmtUptime(ms: number) {
   if (!ms || ms < 0) return '—';
@@ -8,20 +8,26 @@ function fmtUptime(ms: number) {
   return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
 }
 
-export default function NodePopover({ onClose: _onClose }: { onClose: () => void }) {
-  const { status, ports, maximaAddress, refreshMaxima, healMaxima } = useShell();
+export default function NodePopover({ onClose }: { onClose: () => void }) {
+  const { ports, maximaAddress, refreshMaxima, healMaxima } = useShell();
+  const status = useShellStatus();
   const [healing, setHealing] = useState(false);
   const [msg, setMsg] = useState<{ text: string; cls: string }>({ text: '', cls: '' });
   const [copied, setCopied] = useState(false);
+  const timers = useRef<any[]>([]);
+  const later = (fn: () => void, ms: number) => { timers.current.push(setTimeout(fn, ms)); };
 
-  useEffect(() => { refreshMaxima(); }, []);
+  useEffect(() => {
+    refreshMaxima();
+    return () => { timers.current.forEach(clearTimeout); timers.current = []; };
+  }, []);
 
   const h = status && status.health;
   const state = status ? status.state : 'starting';
 
   const copy = async () => {
     if (!maximaAddress) return;
-    try { await navigator.clipboard.writeText(maximaAddress); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (e) {}
+    try { await navigator.clipboard.writeText(maximaAddress); setCopied(true); later(() => setCopied(false), 2000); } catch (e) {}
   };
 
   const heal = async () => {
@@ -31,7 +37,7 @@ export default function NodePopover({ onClose: _onClose }: { onClose: () => void
       const r = await healMaxima();
       if (r && r.status) {
         setMsg({ text: 'Maxima healed — relay reconnected and contacts refreshed.', cls: 'ok' });
-        setTimeout(() => refreshMaxima(), 4000);
+        later(() => refreshMaxima(), 4000);
       } else {
         setMsg({ text: 'Heal failed: ' + ((r && r.error) || 'unknown error'), cls: 'err' });
       }
@@ -43,7 +49,7 @@ export default function NodePopover({ onClose: _onClose }: { onClose: () => void
   };
 
   return (
-    <div className="popover" onMouseDown={(e) => e.stopPropagation()}>
+    <div className="popover" role="dialog" aria-label="Node status" onMouseDown={(e) => e.stopPropagation()}>
       <div className="rows">
         <div className="row"><span className="k">Status</span><span className={`v ${state === 'running' ? 'ok' : state === 'error' ? 'bad' : ''}`}>{state}{status && status.lastError ? ` — ${status.lastError}` : ''}</span></div>
         <div className="row"><span className="k">Block</span><span className="v">{h ? Number(h.block || 0).toLocaleString('en-US') : '—'}</span></div>
@@ -61,7 +67,7 @@ export default function NodePopover({ onClose: _onClose }: { onClose: () => void
       <div className="addr core-black-contrast rounded relative overflow-hidden">
         <div className="relative text-white p-3 text-sm flex items-center justify-between">
           <span>Your Maxima contact address</span>
-          <button className="text-sm text-core-grey-80 hover:text-white nodrag" onClick={copy} disabled={!maximaAddress}>
+          <button type="button" className="text-sm text-core-grey-80 hover:text-white nodrag" onClick={copy} disabled={!maximaAddress}>
             {copied ? <span className="text-status-green">Copied</span> : 'Copy'}
           </button>
         </div>
@@ -73,6 +79,7 @@ export default function NodePopover({ onClose: _onClose }: { onClose: () => void
 
       <div className="heal">
         <button
+          type="button"
           className="w-full px-4 py-3 rounded font-bold text-white core-black-contrast-3 hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed nodrag"
           disabled={healing || state !== 'running'}
           onClick={heal}
@@ -81,6 +88,7 @@ export default function NodePopover({ onClose: _onClose }: { onClose: () => void
         </button>
         <div className={`msg ${msg.cls}`}>{msg.text || 'Reconnects the relay, re-pins the static MLS and refreshes every contact — use after a network change.'}</div>
       </div>
+      <div className="foot"><span /><button type="button" className="text-core-grey-80 hover:text-white bg-transparent nodrag" onClick={onClose}>Close</button></div>
     </div>
   );
 }

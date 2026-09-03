@@ -15,7 +15,14 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { fetchBuffer } = require("./net");
+const crypto = require("crypto");
 const { compareVersions } = require("./versions");
+const iconcache = require("./iconcache");
+
+// Catalog rows without a sha256 are only accepted from hosts we control; with a sha256 the download
+// is verified byte-for-byte. Either way: https only, redirects only to https, body capped.
+const TRUSTED_HOSTS = ["eurobuddha.com", "store.eurobuddha.com", "github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"];
+const MAX_ZIP_BYTES = 64 * 1024 * 1024;
 
 const CATALOG_URL = "https://eurobuddha.com/pandadapps.json";
 
@@ -76,6 +83,7 @@ async function installOrUpdate(rpc, log, entry, inst, filePath, source) {
   const md = r && r.status && r.response && r.response.updated;
   if (!md) { log(`[app] dapps: update of "${entry.name}" failed: ${(r && r.error) || "no reply"}`); return inst; }
   const out = { uid: md.uid, name: md.conf.name, version: String(md.conf.version || "0"), permission: md.conf.permission || inst.permission };
+  iconcache.evictUid(out.uid);   // the uid (and often the version) survive an update — don't serve the old icon
   log(`[app] dapps: updated "${entry.name}" v${inst.version} → v${out.version} from ${source} (uid kept ${out.uid})`);
   return out;
 }
@@ -132,9 +140,19 @@ async function provisionBundledDapps({ rpc, log, skipCatalog }) {
     if (compareVersions(cv, inst.version) <= 0) { log(`[app] dapps: "${e.name}" v${inst.version} up to date with catalog (v${cv})`); continue; }
     let tmp = "";
     try {
-      log(`[app] dapps: catalog has "${e.name}" v${cv} > v${inst.version} — downloading ${row.file}`);
-      const buf = await fetchBuffer(String(row.file), { timeoutMs: 60000 });
+      const fileUrl = String(row.file);
+      let host = "";
+      try { const u = new URL(fileUrl); if (u.protocol !== "https:") throw new Error("not https"); host = u.hostname.toLowerCase(); }
+      catch (err) { log(`[app] dapps: catalog entry for "${e.name}" refused — file url must be https (${fileUrl})`); continue; }
+      const sha = /^[0-9a-f]{64}$/i.test(String(row.sha256 || "")) ? String(row.sha256).toLowerCase() : "";
+      if (!sha && !TRUSTED_HOSTS.includes(host)) { log(`[app] dapps: catalog entry for "${e.name}" refused — no sha256 and ${host} is not a trusted host`); continue; }
+      log(`[app] dapps: catalog has "${e.name}" v${cv} > v${inst.version} — downloading ${fileUrl}`);
+      const buf = await fetchBuffer(fileUrl, { timeoutMs: 60000, maxBytes: MAX_ZIP_BYTES });
       if (!buf || buf.length < 100) throw new Error("empty download");
+      if (sha) {
+        const got = crypto.createHash("sha256").update(buf).digest("hex");
+        if (got !== sha) throw new Error("sha256 mismatch (catalog " + sha + ", download " + got + ")");
+      }
       const safe = (String(row.file).split("/").pop() || "dapp.mds.zip").replace(/[^A-Za-z0-9._-]/g, "_");
       tmp = path.join(os.tmpdir(), "mdesk-" + Date.now() + "-" + safe);
       fs.writeFileSync(tmp, buf);

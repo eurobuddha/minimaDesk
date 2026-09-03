@@ -30,7 +30,7 @@ export type RpcReply = { command?: string; status: boolean; pending?: boolean; r
 export interface MinimaBridge {
   platform: string;
   snapshot(): Promise<NodeSnapshot>;
-  logs(): Promise<string[]>;
+  logs(): Promise<{ seq: number; lines: string[] }>;
   ports(): Promise<Ports>;
   onStatus(cb: (s: NodeSnapshot) => void): () => void;
   nodeStop(compact?: boolean): Promise<RpcReply>;

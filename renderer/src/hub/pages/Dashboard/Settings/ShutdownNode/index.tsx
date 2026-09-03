@@ -9,7 +9,7 @@ type ShutdownProps = {
 };
 
 export function ShutdownNode({ display, dismiss }: ShutdownProps) {
-  const { setHasShutdown } = useContext(appContext);
+  const { setHasShutdown, notify } = useContext(appContext);
   const [shutdown, setShutdown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [compactDatabase, setCompactDatabase] = useState(false);
@@ -19,16 +19,26 @@ export function ShutdownNode({ display, dismiss }: ShutdownProps) {
   // minimaDesk: stop the node child that the app owns (optionally compacting its databases)
   const confirm = async () => {
     setIsLoading(true);
-    await (window as any).minima.nodeStop(compactDatabase);
+    let r: any = null;
+    try { r = await (window as any).minima.nodeStop(compactDatabase); } catch (e: any) { r = { status: false, error: e && e.message }; }
     setIsLoading(false);
+    if (!r || !r.status) {
+      notify('Shutdown failed: ' + ((r && r.error) || 'unknown error'));
+      return;
+    }
     setShutdown(true);
     setHasShutdown(true);
   };
 
   const restart = async () => {
     setRestarting(true);
-    await (window as any).minima.nodeRestart();
+    let r: any = null;
+    try { r = await (window as any).minima.nodeRestart(); } catch (e: any) { r = { status: false, error: e && e.message }; }
     setRestarting(false);
+    if (!r || !r.status) {
+      notify('Restart failed: ' + ((r && r.error) || 'unknown error'));
+      return;
+    }
     setShutdown(false);
     setHasShutdown(false);
     dismiss();

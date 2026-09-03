@@ -7,7 +7,7 @@
  * A router accepting the mapping proves nothing (a Plusnet Hub Two stores it Enabled=1 and leaves the port
  * shut), so the mapped copy says "asked your router", never "the port is open".
  */
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import SlideScreen from '../../../../components/UI/SlideScreen';
 import Button from '../../../../components/UI/Button';
 import Toggle from '../../../../components/UI/Toggle';
@@ -80,7 +80,12 @@ export function Network({ display, dismiss }: Props) {
     return () => { off && off(); clearInterval(iv); };
   }, [display]);
 
-  useEffect(() => { if (cfg && cfg.mls.mode === 'custom' && !customMls) setCustomMls(cfg.mls.custom); }, [cfg]);
+  const seededMls = useRef(false);
+  useEffect(() => {
+    if (!seededMls.current && cfg && cfg.mls.mode === 'custom' && cfg.mls.custom) { seededMls.current = true; setCustomMls(cfg.mls.custom); }
+  }, [cfg]);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   // the node returns staticmls either as the host itself or as `true` with the host in `mls`
   const looksLikeHost = (v: any) => typeof v === 'string' && /^Mx.+@.+:\d+$/.test(v);
@@ -108,16 +113,19 @@ export function Network({ display, dismiss }: Props) {
   const addrOk = showAddr && !!(pm && pm.externalIp) && p2pIp === (pm && pm.externalIp);
 
   const run = async (key: string, fn: () => Promise<any>, okText: string) => {
+    if (busy) return;
     setBusy(key); setMsg('');
     try {
       const r = await fn();
+      if (!mounted.current) return;
       if (r && r.status === false) { setMsg((r.error || 'failed') as string); notify('Network: ' + (r.error || 'failed')); }
       else { setMsg(okText); notify(okText); }
-    } catch (e: any) { setMsg(e && e.message ? e.message : String(e)); }
-    finally { setBusy(''); await refreshCfg(); await refreshMaxima(); }
+    } catch (e: any) { if (mounted.current) setMsg(e && e.message ? e.message : String(e)); }
+    finally { if (mounted.current) { setBusy(''); await refreshCfg(); await refreshMaxima(); } }
   };
 
   const toggleContribute = () => {
+    if (busy) return;                      // a restart is already in flight
     const turnOn = !contributing;
     setModal({
       display: true,
@@ -135,7 +143,7 @@ export function Network({ display, dismiss }: Props) {
     const selected = cfg && cfg.maximaRelay === host;
     return (
       <div key={host} className={`flex items-center gap-3 py-2 border-b border-contrast4 border-opacity-40 ${selected ? 'text-white' : 'text-core-grey-20'}`}>
-        <div className={`w-2 h-2 rounded-full ${hx && hx.connected ? 'bg-status-green' : 'bg-core-black-contrast-3'}`} title={hx && hx.connected ? 'connected' : 'not connected'} />
+        <div className="w-2 h-2 rounded-full" style={{ background: hx && hx.connected ? 'var(--status-green)' : 'var(--core-black-contrast-3)' }} title={hx && hx.connected ? 'connected' : 'not connected'} />
         <div className="grow min-w-0">
           <div className="text-sm">{label}{selected ? <span className="text-core-grey-80"> · attached</span> : null}</div>
           <div className="text-xs text-core-grey-80 break-all">{host}</div>
@@ -218,7 +226,7 @@ export function Network({ display, dismiss }: Props) {
                     <div className="core-black-contrast-2 p-3 font-mono text-xs leading-5 break-all">{permanentAddress}</div>
                     <div className="p-3 text-xs">
                       {anchoredToRelay
-                        ? <span className="text-status-green">● Live — anchored to {relayLabel}, resolved through the federated relay mesh</span>
+                        ? <span className="text-status-green">● Anchored to {relayLabel} — your pinned Location Service matches the attached relay{attached && attached.connected ? ', which is connected' : ''}</span>
                         : <span className="text-amber-300">Pinned to a Location Service other than your attached relay{cfg && cfg.mls.mode === 'custom' ? ' (custom MLS)' : ''}. Press the button below to anchor it to the relay instead.</span>}
                     </div>
                   </div>
@@ -246,10 +254,11 @@ export function Network({ display, dismiss }: Props) {
                   <Row k="Pinned MLS" v={pinned ? pinned : (info && info.mls ? `${info.mls} (host-assigned)` : '—')} mono />
                 </div>
                 <div className="mt-4 flex flex-col gap-2">
-                  <Choice on={!!cfg && cfg.mls.mode === 'relay'} title="Pin the attached relay" sub="Existing contacts keep finding you through the relay. This alone is not a permanent MAX# address." onClick={() => run('mls', () => minima.netSetMls('relay'), 'Pinning the attached relay…')} />
-                  <Choice on={!!cfg && cfg.mls.mode === 'custom'} title="Custom MLS" sub="Pin a Location Service of your own (Mx…@host:port) — set automatically when you create a permanent address." onClick={() => { /* choose via the field below */ }}>
-                    <div className="flex gap-2 mt-2">
-                      <input className="grow border-2 border-core-black-contrast-3 bg-black outline-none rounded py-2 px-3 text-sm" placeholder="Mx…@host:port" value={customMls} onChange={(e) => setCustomMls(e.target.value)} />
+                  <Choice on={!!cfg && cfg.mls.mode === 'relay'} title="Pin the attached relay (recommended)" sub={'What “Make this my permanent address” does: your MAX# is anchored to the relay you are attached to.'} onClick={() => run('mls', () => minima.netSetMls('relay'), 'Pinning the attached relay…')} />
+                  <Choice on={!!cfg && cfg.mls.mode === 'custom'} title="Custom MLS" sub="Pin a Location Service of your own (Mx…@host:port)." onClick={() => { if (customMls.trim()) run('mls', () => minima.netSetMls('custom', customMls.trim()), 'Pinned your MLS'); }}>
+                    <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                      <input className="grow border-2 border-core-black-contrast-3 bg-black outline-none rounded py-2 px-3 text-sm" placeholder="Mx…@host:port" value={customMls} onChange={(e) => setCustomMls(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && customMls.trim()) run('mls', () => minima.netSetMls('custom', customMls.trim()), 'Pinned your MLS'); }} />
                       <button className="text-sm px-3 rounded core-black-contrast-3 hover:opacity-80 disabled:opacity-40" disabled={!!busy || !customMls} onClick={() => run('mls', () => minima.netSetMls('custom', customMls), 'Pinned your MLS')}>Pin</button>
                     </div>
                   </Choice>

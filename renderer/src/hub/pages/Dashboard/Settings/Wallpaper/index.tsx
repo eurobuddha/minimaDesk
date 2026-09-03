@@ -24,7 +24,7 @@ type WallpaperProps = {
 };
 
 export function Wallpaper({ display, dismiss }: WallpaperProps) {
-  const { activeWallpaper, setActiveWallpaper, customWallpaper } = useContext(appContext);
+  const { activeWallpaper, setActiveWallpaper, customWallpaper, notify } = useContext(appContext);
   const [preview, setPreview] = useState<string | false>(false);
   const [name, setName] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -43,8 +43,13 @@ export function Wallpaper({ display, dismiss }: WallpaperProps) {
      * minimaDesk: copy the picked image into userData (main), set BACKGROUND to custom-<file>, apply the data URL
      */
     if (file) {
-      const res = await (window as any).minima.wallpaperSet(filePathOf(file));
+      let res: any = null;
+      try { res = await (window as any).minima.wallpaperSet(filePathOf(file)); }
+      catch (e: any) { res = { status: false, error: e && e.message ? e.message : String(e) }; }
       if (!res || !res.status) {
+        notify('Could not set wallpaper: ' + ((res && res.error) || 'unknown error'));
+        setFile(null);
+        setName('');
         return;
       }
 
