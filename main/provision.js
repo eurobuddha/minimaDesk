@@ -152,6 +152,9 @@ async function provisionBundledDapps({ rpc, log, skipCatalog }) {
       if (sha) {
         const got = crypto.createHash("sha256").update(buf).digest("hex");
         if (got !== sha) throw new Error("sha256 mismatch (catalog " + sha + ", download " + got + ")");
+        log(`[app] dapps: sha256 verified for "${e.name}" v${cv}: ${got}`);
+      } else {
+        log(`[app] dapps: no sha256 in the catalog for "${e.name}" — accepted on host trust (${host})`);
       }
       const safe = (String(row.file).split("/").pop() || "dapp.mds.zip").replace(/[^A-Za-z0-9._-]/g, "_");
       tmp = path.join(os.tmpdir(), "mdesk-" + Date.now() + "-" + safe);
