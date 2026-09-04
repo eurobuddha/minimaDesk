@@ -91,8 +91,10 @@ const useAppList = () => {
         }
       }
 
-      // desktop
-      if (width > 1024) {
+      // desktop — 976 is the tailwind `lg` breakpoint where the CSS grid switches to 6 columns; the page size
+      // must switch with it (stock MiniHUB used 1024 here, leaving a 976–1024 band with 6 columns but 4-column
+      // page maths).
+      if (width >= 976) {
         if (height > 700) {
           setFolderMaxColumns(4);
           setFolderMaxRows(3);
@@ -111,15 +113,11 @@ const useAppList = () => {
           setFolderMaxRows(2);
         }
 
-        if (height > 960) {
-          setMaxRows(5);
-        } else if (height > 830) {
-          setMaxRows(4);
-        } else if (height > 730) {
-          setMaxRows(3);
-        } else if (height > 630) {
-          setMaxRows(2);
-        }
+        // Rows that fit: the grid starts ~160px into the stage (profile + action bars), the dots + bottom
+        // padding take ~110px, and a row (80px icon + label + mb-8) pitches ~145px. Never fewer than 2, no
+        // ceiling — a tall window fills up. Stock MiniHUB stopped at 5 rows and kept the previous value
+        // below 630px, so the hub never grew past what it first measured.
+        setMaxRows(Math.max(2, Math.floor((height - 270) / 145)));
 
         setMaxColumns(6);
 

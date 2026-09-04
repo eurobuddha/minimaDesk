@@ -147,8 +147,11 @@
 /* ---- stage layers ---- */
 .stage { flex: 1 1 auto; position: relative; min-height: 0; }
 .stage-layer { position: absolute; inset: 0; }
-/* the hub lives here: contain:paint keeps its `fixed` modals/toasts and the StatusBar cluster inside the stage */
-.stage-home { position: relative; contain: paint; overflow: hidden; }
+/* the hub lives here: contain:paint keeps its `fixed` modals/toasts and the StatusBar cluster inside the stage.
+   It MUST stay absolute (inset:0 from .stage-layer) so it is sized by the window, not by its own content —
+   the hub measures this element's height to decide how many icon rows fit, and a content-sized box makes that
+   circular (it settled on 2 rows at every window size). */
+.stage-home { contain: paint; overflow: hidden; }
 .stage-home .app { width: 100% !important; height: 100% !important; }
 .stage-home .dashboard { height: 100% !important; }
 .stage-home .bg { min-height: 0 !important; height: 100%; }

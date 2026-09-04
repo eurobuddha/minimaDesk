@@ -97,6 +97,13 @@ function createWindow() {
         win.webContents.executeJavaScript(s.js).then(r => console.log("[seq]", r)).catch(e => console.log("[seq fail]", e.message));
       }, s.ms || 13000));
     }
+    if (process.env.MDESK_WINSIZE) {
+      // MDESK_WINSIZE="WxH" (initial) and/or "WxH@ms,WxH@ms" — resize the window on a schedule (layout checks)
+      for (const spec of String(process.env.MDESK_WINSIZE).split(",").filter(Boolean)) {
+        const [wh, ms] = spec.split("@"); const [w, h] = wh.split("x").map(Number);
+        setTimeout(() => { try { win.setSize(w, h); console.log("[winsize]", w, h); } catch (e) {} }, Number(ms) || 0);
+      }
+    }
     if (process.env.MDESK_EXIT_MS) {
       // MDESK_EXIT_MS = quit after N ms (dev verification runs; goes through the graceful node stop)
       setTimeout(() => app.quit(), Number(process.env.MDESK_EXIT_MS));
