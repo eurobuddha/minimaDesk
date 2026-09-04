@@ -12,6 +12,7 @@ export default function NodePopover({ onClose }: { onClose: () => void }) {
   const { ports, maximaAddress, refreshMaxima, healMaxima } = useShell();
   const status = useShellStatus();
   const [healing, setHealing] = useState(false);
+  const [restarting, setRestarting] = useState(false);
   const [msg, setMsg] = useState<{ text: string; cls: string }>({ text: '', cls: '' });
   const [copied, setCopied] = useState(false);
   const timers = useRef<any[]>([]);
@@ -48,6 +49,19 @@ export default function NodePopover({ onClose }: { onClose: () => void }) {
     }
   };
 
+  // Always reachable — the hub's own Settings → Restart is unreachable once the node is down.
+  const restart = async () => {
+    setRestarting(true);
+    setMsg({ text: state === 'running' ? 'Stopping the node cleanly, then starting it again…' : 'Starting the node…', cls: '' });
+    try {
+      const r = await window.minima.nodeRestart();
+      setMsg(r && r.status ? { text: 'Node started — it will show as running once it answers.', cls: 'ok' } : { text: 'Start failed: ' + ((r && r.error) || 'unknown error'), cls: 'err' });
+    } catch (e: any) {
+      setMsg({ text: 'Start failed: ' + (e && e.message ? e.message : String(e)), cls: 'err' });
+    } finally { setRestarting(false); }
+  };
+  const restartLabel = restarting ? (state === 'running' ? 'Restarting…' : 'Starting…') : (state === 'running' ? 'Restart node' : 'Start node');
+
   return (
     <div className="popover" role="dialog" aria-label="Node status" onMouseDown={(e) => e.stopPropagation()}>
       <div className="rows">
@@ -80,13 +94,23 @@ export default function NodePopover({ onClose }: { onClose: () => void }) {
       <div className="heal">
         <button
           type="button"
-          className="w-full px-4 py-3 rounded font-bold text-white core-black-contrast-3 hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed nodrag"
-          disabled={healing || state !== 'running'}
+          className={`w-full px-4 py-3 rounded font-bold nodrag hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed ${state === 'running' ? 'text-white core-black-contrast-3' : 'text-black bg-white'}`}
+          disabled={restarting || healing || state === 'stopping' || state === 'starting'}
+          onClick={restart}
+        >
+          {restartLabel}
+        </button>
+        <button
+          type="button"
+          className="w-full mt-2 px-4 py-3 rounded font-bold text-white core-black-contrast-3 hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed nodrag"
+          disabled={healing || restarting || state !== 'running'}
           onClick={heal}
         >
           {healing ? 'Healing…' : 'Heal Maxima'}
         </button>
-        <div className={`msg ${msg.cls}`}>{msg.text || 'Reconnects the relay, re-pins the static MLS and refreshes every contact — use after a network change.'}</div>
+        <div className={`msg ${msg.cls}`}>{msg.text || (state === 'running'
+          ? 'Restart: stops the node cleanly and starts it again (after a resync, restore or reset). Heal: reconnects the relay, re-pins the static MLS and refreshes every contact.'
+          : 'The node is not running. Start it here — no need to quit the app.')}</div>
       </div>
       <div className="foot"><span /><button type="button" className="text-core-grey-80 hover:text-white bg-transparent nodrag" onClick={onClose}>Close</button></div>
     </div>

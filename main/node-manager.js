@@ -35,6 +35,9 @@ const NET_RESTART_COOLDOWN_MS = 10 * 60_000;
 const MAXIMA_REFRESH_MS = 15 * 60 * 1000;           // periodic MLS refresh so cached contact addresses don't go stale
 const ADOPTED_DEAD_AFTER = 3;                       // consecutive failed polls before an adopted node is declared gone
 const PROVISION_MAX_TRIES = 60;                     // ~8 min of MDS not answering before we stop trying this run
+const SELF_RESTART_DELAY_MS = 2500;                 // a clean self-shutdown (megammrsync / restore / reset) → start again
+const SELF_RESTART_MAX = 3;                         // …but not in a loop: at most 3 in SELF_RESTART_WINDOW_MS
+const SELF_RESTART_WINDOW_MS = 10 * 60_000;
 
 function tokenizeArgs(s) {
   if (!s || typeof s !== "string") return [];
@@ -81,6 +84,7 @@ class NodeManager extends EventEmitter {
     this.provisionTries = 0;
     this.wasMapped = false;
     this.lastNetRestart = 0;
+    this.selfRestarts = [];      // timestamps of automatic restarts after a clean self-shutdown
     portmap.setLogger(line => this.log(line));
     portmap.on("status", st => {
       // Late mapping recovery: after ~1h with no in-links the jar flips isAcceptingInLinks=false and
@@ -211,7 +215,24 @@ class NodeManager extends EventEmitter {
       // Only on an UNEXPECTED exit: a planned stop already released the mapping, and restart() would race it.
       if (this.state !== "stopping") {
         portmap.stop().catch(() => {});
-        this.lastError = "node exited unexpectedly (" + (code ?? sig) + ")"; this.setState("error");
+        // Exit code 0 while we never asked it to stop = the node shut ITSELF down cleanly — that is what
+        // `megammrsync`, `restore` and `reset` do when they finish ("please restart"). Start it again, so a
+        // resync never leaves the user with a dead app. Bounded, so a node that dies clean on every boot
+        // (bad data folder, bad startup flag) still surfaces as an error instead of flapping forever.
+        const now = Date.now();
+        this.selfRestarts = this.selfRestarts.filter(t => now - t < SELF_RESTART_WINDOW_MS);
+        if (code === 0 && this.selfRestarts.length < SELF_RESTART_MAX) {
+          this.selfRestarts.push(now);
+          this.lastError = null;
+          this.log("[app] node shut itself down cleanly (resync / restore / reset finished) — restarting it in " + Math.round(SELF_RESTART_DELAY_MS / 1000) + "s");
+          this.setState("starting");
+          setTimeout(() => { if (!this.proc && !this.adopted && this.state === "starting") this.start().catch(() => {}); }, SELF_RESTART_DELAY_MS);
+        } else {
+          this.lastError = code === 0
+            ? "node keeps shutting itself down — check Settings → Startup parameters and Node logs, then Start node"
+            : "node exited unexpectedly (" + (code ?? sig) + ")";
+          this.setState("error");
+        }
       } else this.setState("stopped");
     });
     this.startHealth();
