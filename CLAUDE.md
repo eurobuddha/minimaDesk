@@ -44,3 +44,10 @@ Product spec: `SPEC.md`.
 Every code change ships with a **version bump** (`version` in package.json). One
 logical change = one version = one commit = one push, in order. Docs/config-only
 commits need no bump.
+
+## Signed mac releases (since 0.7.12, 2026-09-04)
+The Developer ID certificate + notary profile `minimadesk` exist on this Mac. The mac DMG for any release is
+`npm run dist:mac:signed` (signs, notarizes, staples, then `scripts/verify-mac.sh` must print ALL OK) — never
+`dist:mac` for something that ships. CI's mac DMG is unsigned until the `MAC_CERT_P12`/`APPLE_*` secrets
+exist: upload the local signed DMG over it (`gh release upload vX.Y.Z dist/minimaDesk-X.Y.Z-arm64.dmg --clobber`)
+before updating the store rows. Family rule: `../../CLAUDE.md` "Desktop builds are SIGNED".
