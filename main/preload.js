@@ -41,6 +41,12 @@ contextBridge.exposeInMainWorld("minima", {
   // Settings → minimaDesk: copy the RPC password to the clipboard (never returned to the renderer)
   rpcCopyPassword: () => invoke("rpc:copyPassword"),
 
+  // Settings → Startup parameters (data folder, Minima port, every jar flag, raw extra args)
+  paramsGet: () => invoke("params:get"),
+  paramsPreview: (patch) => invoke("params:preview", patch),
+  paramsApply: (patch) => invoke("params:apply", patch),
+  paramsPickFolder: () => invoke("params:pickFolder"),
+
   // Settings → Network
   netConfig: () => invoke("net:config"),
   netSetContribute: (on) => invoke("net:setContribute", !!on),

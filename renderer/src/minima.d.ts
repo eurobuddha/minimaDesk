@@ -24,6 +24,20 @@ export type NodeSnapshot = {
   maximaRelay?: string;
   mls?: MlsPolicy;
 };
+export type ParamType = 'bool' | 'value' | 'int' | 'secret';
+export type ParamItem = { flag: string; type: ParamType; label: string; help: string; def: boolean | string; danger?: boolean };
+export type ParamGroup = { group: string; items: ParamItem[] };
+/** bool → boolean; value/int → string; secret → boolean (true = stored, never the value itself) */
+export type ParamValues = Record<string, boolean | string>;
+export type StartupPreview = { java: string; args: string[]; confFlags: string[] };
+export type StartupConfig = {
+  status: boolean; error?: string;
+  groups: ParamGroup[]; managedInfo: { flag: string; note: string }[];
+  values: ParamValues; dataFolder: string; defaultDataFolder: string; basePort: number; extraArgs: string; contribute: boolean;
+  preview: StartupPreview;
+};
+/** secret params: true = keep stored, false/'' = clear, any other string = new value */
+export type StartupPatch = { basePort: number | string; dataFolder: string; params: ParamValues; extraArgs: string };
 export type Ports = { base: number; rpc: number; mds: number; appVersion: string };
 export type RpcReply = { command?: string; status: boolean; pending?: boolean; response?: any; error?: string; cancelled?: boolean };
 
@@ -41,6 +55,10 @@ export interface MinimaBridge {
   iconData(url: string): Promise<string>;
   healMaxima(): Promise<{ status: boolean; error?: string }>;
   rpcCopyPassword(): Promise<{ status: boolean; user?: string; port?: number; error?: string }>;
+  paramsGet(): Promise<StartupConfig>;
+  paramsPreview(patch: StartupPatch): Promise<{ status: boolean; errors: string[]; preview?: StartupPreview }>;
+  paramsApply(patch: StartupPatch): Promise<{ status: boolean; errors?: string[]; relaunch?: boolean }>;
+  paramsPickFolder(): Promise<string | null>;
   netConfig(): Promise<{ contribute: boolean; maximaRelay: string; mls: MlsPolicy; knownRelays: KnownRelay[]; basePort: number }>;
   netSetContribute(on: boolean): Promise<{ status: boolean; error?: string }>;
   netSetMaximaRelay(host: string): Promise<{ status: boolean; error?: string }>;

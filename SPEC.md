@@ -69,6 +69,14 @@ Electron main (main/*.js)  ──IPC (preload: window.minima)──▶  renderer
    - *Hosts*: the relay fleet; exactly ONE relay attached (several double-deliver Maxima).
    - Fix-ups: Heal Maxima, "My IP changed" (`network action:recalculateip`).
 5. **Settings → minimaDesk**: versions, ports, Heal, Copy RPC password, Restart node.
+5b. **Settings → Startup parameters** (0.7.8): data folder (Choose… / default, no spaces), Minima port
+   (MDS/RPC derived), every jar flag from the `main/params.js` manifest grouped as in the old desktop app
+   (bool toggles, values, ints, secrets), raw extra arguments, "Managed by minimaDesk" read-only list, live
+   command-line preview + Copy. `params:preview` validates as you type; `params:apply` saves (secrets →
+   encrypted files → conf file) and restarts the node, or relaunches the app when the port changed. Danger
+   flags (`-clean`, `-genesis`, `-solo`, `-test`, `-nosslmds`, `-rpcssl`) confirm before they turn on;
+   `-isclient`/`-desktop` are refused while Contribute is on. Defaults are all off, so an untouched config
+   produces exactly the pre-0.7.8 command line.
 6. **Pending prompt** over any tab for read-mode dapps issuing writes; Node logs view.
 
 ## 3. Release (the standing rhythm)
@@ -86,7 +94,10 @@ Electron main (main/*.js)  ──IPC (preload: window.minima)──▶  renderer
 - Isolated dev instance (never the installed app): `MDESK_USERDATA=<dir>` with `config.json`
   `{ "basePort": 21001 }`, `MDESK_NODELOG`, `MDESK_SEQ` (JS steps), `MDESK_SHOTS`, `MDESK_EXIT_MS`,
   `MDESK_NO_CATALOG=1`. Standard checks: boot → grid; open a dapp tab; provisioning log lines;
-  `status;mds` has no password; restart leaves state `running`; Network sheet renders.
+  `status;mds` has no password; restart leaves state `running`; Network sheet renders. Startup-parameters
+  checks: `paramsPreview` with a bogus flag returns errors; `paramsApply` with `showparams:true` restarts the
+  node and `showparams:true` appears in Node logs. **Always pass the dev instance's own `dataFolder` to
+  `paramsApply`** — a blank folder means the default `~/.minimadesk-data`, i.e. the INSTALLED app's data.
 - No permanent registration is left anywhere by tests; relay/MLS tests use the open-pool relays.
 
 ## 5. Not yet done / candidates

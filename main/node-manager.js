@@ -117,26 +117,35 @@ class NodeManager extends EventEmitter {
     return fs.existsSync(bundled) ? bundled : "java";
   }
 
-  /** The secrets go in a 0600 conf file (key=value lines, same names as the -flags), never on argv. */
-  writeConfFile() {
-    const file = path.join(app.getPath("userData"), "node.conf");
-    const text = "rpcpassword=" + config.rpcSecret() + "\n" + "mdspassword=" + config.mdsPassword() + "\n";
+  confPath() { return path.join(app.getPath("userData"), "node.conf"); }
+
+  /** The secrets go in a 0600 conf file (key=value lines, same names as the -flags), never on argv:
+   *  the RPC + MDS passwords, plus any secret-type startup param (dbpassword, mysqldb). */
+  writeConfFile(confParams) {
+    const file = this.confPath();
+    let text = "rpcpassword=" + config.rpcSecret() + "\n" + "mdspassword=" + config.mdsPassword() + "\n";
+    for (const [k, v] of Object.entries(confParams || {})) text += k + "=" + v + "\n";
     config.writeAtomic(file, text, 0o600);
     return file;
   }
 
-  buildArgs() {
-    const cfg = config.load();
+  /**
+   * The java argument list for a config. `dryRun` (Settings → Startup parameters preview) touches nothing on
+   * disk — no data folder, no conf file — and reports which secret flags the conf file would carry.
+   */
+  buildArgs(cfg = config.load(), { dryRun = false } = {}) {
     const dataDir = cfg.dataFolder || config.defaultDataFolder();
-    fs.mkdirSync(dataDir, { recursive: true });
+    const basePort = parseInt(cfg.basePort, 10) || 20001;
+    const { argv: paramArgs, conf: confParams } = config.effectiveParams(cfg);
+    if (!dryRun) fs.mkdirSync(dataDir, { recursive: true });
     // Cap the JVM heap — a fresh node running the default MDS services can otherwise
     // balloon RAM and jank the whole machine (JVM flags must precede -jar).
     const args = ["-Xmx1500m", "-Xms256m", "-jar", this.jarPath(),
-      "-conf", this.writeConfFile(),
+      "-conf", dryRun ? this.confPath() : this.writeConfFile(confParams),
       "-data", dataDir,
       "-basefolder", dataDir,
-      "-port", String(config.basePort()),
-      "-rpc", String(config.rpcPort()),
+      "-port", String(basePort),
+      "-rpc", String(basePort + 4),
       "-rpcenable", "true",
       // MDS: the MiniDapp System — install + serve real MiniDapps. Off in stock; we turn it on.
       "-mdsenable",
@@ -144,8 +153,10 @@ class NodeManager extends EventEmitter {
     // Contribute to the network: accept inbound P2P (the jar's -server role). Never alongside -isclient /
     // -mobile — their ordering in the jar's ParamConfigurer is a HashMap accident.
     if (cfg.contribute) args.push("-server", "true");
+    // Every other startup flag the user set in Settings → Startup parameters (main/params.js manifest).
+    for (const [flag, v] of paramArgs) { if (v === true) args.push("-" + flag); else args.push("-" + flag, String(v)); }
     for (const tok of tokenizeArgs(cfg.extraArgs)) args.push(tok);
-    return args;
+    return dryRun ? { args, confFlags: Object.keys(confParams) } : args;
   }
 
   start() {

@@ -12,13 +12,15 @@ const { app, safeStorage } = require("electron");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const PARAMS = require("./params");
 
 const DEFAULTS = {
   // A dedicated base port so minimaDesk coexists with any other Minima node the user runs (9001 classic,
   // 11001 android, 12001 old desktop, 16001 classic-desktop). MDS = base+2, RPC = base+4.
   basePort: 20001,
   dataFolder: "",        // -data (empty → default under userData/minima-data)
-  extraArgs: "",         // additional raw jar args, appended verbatim
+  extraArgs: "",         // additional raw jar args, appended verbatim (validated against params.ALL_FLAGS)
+  params: {},            // every other minima.jar startup flag (Settings → Startup parameters); secrets hold a `true` marker
   contribute: false,     // "Contribute to the network": -server role + UPnP/NAT-PMP port mapping (Settings → Network)
   maximaRelay: "",       // the ONE Maxima relay to attach to (host:port); "" → the default fleet relay
   mls: { mode: "relay", custom: "" },   // static MLS policy: relay (pin the attached relay) | custom (Mx…@host:port) | host (rotating)
@@ -48,7 +50,13 @@ function defaultDataFolder() {
 function load() {
   let j = {};
   try { j = JSON.parse(fs.readFileSync(configPath(), "utf8")); } catch (e) { /* first run */ }
-  return Object.assign({}, DEFAULTS, j);
+  const merged = Object.assign({}, DEFAULTS, j);
+  // params: ONLY flags in the current manifest — a saved value wins, otherwise the default. A stale config
+  // can never resurrect a flag the bundled jar no longer knows (the jar refuses to boot on an unknown flag).
+  const defs = PARAMS.defaultParams(), sp = (j && j.params && typeof j.params === "object") ? j.params : {}, params = {};
+  for (const k of Object.keys(defs)) params[k] = (k in sp) ? sp[k] : defs[k];
+  merged.params = params;
+  return merged;
 }
 /** Crash-safe: write a sibling temp file, then rename over config.json (rename is atomic on one volume). */
 function writeAtomic(file, text, mode) {
@@ -95,8 +103,36 @@ function ensureSecret(name) {
 function rpcSecret() { return ensureSecret("rpc.secret"); }
 function mdsPassword() { return ensureSecret("mds.secret"); }
 
+// ---- secret startup params (dbpassword, mysqldb): encrypted 0600 files, a `true` marker in config.json ----
+function paramSecretPath(flag) { return secretPath("param-" + String(flag).replace(/[^a-z0-9-]/gi, "_") + ".secret"); }
+function paramSecretGet(flag) { return readSecret(paramSecretPath(flag)); }
+function paramSecretSet(flag, value) { writeSecret(paramSecretPath(flag), value); }
+function paramSecretDelete(flag) { try { fs.unlinkSync(paramSecretPath(flag)); } catch (e) {} }
+
+/**
+ * The startup params to hand to the jar: { argv: [flag, value|true], conf: { flag: secret } }.
+ * argv params are appended after the managed ones (bool → `-flag`, value → `-flag <v>`); conf params are
+ * secrets and go into the 0600 node.conf next to rpcpassword/mdspassword. Managed flags are never here.
+ */
+function effectiveParams(cfg) {
+  const p = (cfg || load()).params || {};
+  const argv = [], conf = {};
+  for (const it of PARAMS.ITEMS) {
+    const v = p[it.flag];
+    if (it.type === "bool") { if (v === true) argv.push([it.flag, true]); continue; }
+    if (it.type === "secret") {
+      if (v === true) { const s = paramSecretGet(it.flag); if (s) conf[it.flag] = s; }
+      continue;
+    }
+    const str = String(v == null ? "" : v).trim();
+    if (str) argv.push([it.flag, str]);
+  }
+  return { argv, conf };
+}
+
 module.exports = {
   load, save, writeAtomic, defaultDataFolder,
   basePort, rpcPort, mdsPort,
-  rpcSecret, mdsPassword
+  rpcSecret, mdsPassword,
+  effectiveParams, paramSecretGet, paramSecretSet, paramSecretDelete
 };

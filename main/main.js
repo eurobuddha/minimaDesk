@@ -18,6 +18,7 @@ const node = require("./node-manager");
 const prefs = require("./prefs");
 const { rpcCall } = require("./rpc");
 const iconcache = require("./iconcache");
+const startup = require("./startup");
 const { KNOWN_RELAYS } = require("./relays");
 
 // Dev only: run from an isolated userData (own secrets, own single-instance lock, own config/port) so a
@@ -25,6 +26,7 @@ const { KNOWN_RELAYS } = require("./relays");
 if (!app.isPackaged && process.env.MDESK_USERDATA) app.setPath("userData", process.env.MDESK_USERDATA);
 
 let win = null;
+let quitting = false;                 // set once the graceful stop has run (before-quit, or a relaunch)
 const send = (ch, payload) => { if (win && !win.isDestroyed()) win.webContents.send(ch, payload); };
 
 // ---- window.open policy ----
@@ -137,13 +139,13 @@ app.on("web-contents-created", (_e, contents) => {
   } catch (e) {}
 });
 
-// Trust ONLY the node's own loopback MDS cert (self-signed). Everything else stays strict.
+// Trust ONLY the node's own loopback MDS cert (self-signed). Everything else stays strict. The port is read
+// per request so a base-port change (Settings → Startup parameters) is honoured after the relaunch.
 function trustLoopbackMds() {
-  const mdsPort = config.mdsPort();
   app.on("certificate-error", (event, webContents, url, error, cert, callback) => {
     try {
       const u = new URL(url);
-      if ((u.hostname === "127.0.0.1" || u.hostname === "localhost") && String(u.port) === String(mdsPort)) {
+      if ((u.hostname === "127.0.0.1" || u.hostname === "localhost") && String(u.port) === String(config.mdsPort())) {
         event.preventDefault(); callback(true); return;
       }
     } catch (e) {}
@@ -219,6 +221,48 @@ ipcMain.handle("net:setContribute", async (_e, on) => { try { return await node.
 ipcMain.handle("net:setMaximaRelay", async (_e, host) => { try { return await node.setMaximaRelay(host); } catch (e) { return { status: false, error: e.message }; } });
 ipcMain.handle("net:setMls", async (_e, mode, custom) => { try { return await node.setMls(mode, custom); } catch (e) { return { status: false, error: e.message }; } });
 
+
+// ---- Settings → Startup parameters: the node's data folder, Minima port, every jar flag, raw extra args ----
+ipcMain.handle("params:get", () => {
+  try { return Object.assign({ status: true }, startup.current(), { preview: previewFor(config.load()) }); }
+  catch (e) { return { status: false, error: e.message }; }
+});
+/** The exact java command line a config would produce (no secrets — those live in the 0600 conf file). */
+function previewFor(cfg) {
+  const { args, confFlags } = node.buildArgs(cfg, { dryRun: true });
+  return { java: node.javaPath(), args, confFlags };
+}
+ipcMain.handle("params:preview", (_e, patch) => {
+  try {
+    const { errors, next } = startup.validate(patch);
+    return { status: errors.length === 0, errors, preview: previewFor(next) };
+  } catch (e) { return { status: false, errors: [e.message] }; }
+});
+/** Save, then restart the node — or, when the Minima port changed (MDS/RPC ports, every open tab, the cert
+ *  trust all hang off it), relaunch the whole app after a graceful node stop. */
+ipcMain.handle("params:apply", async (_e, patch) => {
+  try {
+    const before = config.basePort();
+    const r = startup.apply(patch);
+    if (!r.status) return r;
+    const portChanged = config.basePort() !== before;
+    if (portChanged) {
+      setTimeout(async () => {
+        try { await node.stop(); } catch (e) {}
+        quitting = true;
+        app.relaunch();
+        app.exit(0);
+      }, 300);
+      return { status: true, relaunch: true };
+    }
+    node.restart().catch(() => {});
+    return { status: true, relaunch: false };
+  } catch (e) { return { status: false, errors: [e.message] }; }
+});
+ipcMain.handle("params:pickFolder", async () => {
+  const r = await dialog.showOpenDialog(win, { title: "Choose the node's data folder", properties: ["openDirectory", "createDirectory"] });
+  return (r.canceled || !r.filePaths || !r.filePaths.length) ? null : r.filePaths[0];
+});
 
 /** Pick a .mds.zip and install it (trust:read by default; user grants write via the hub / pending prompt). */
 ipcMain.handle("mds:install", async () => {
@@ -326,7 +370,6 @@ ipcMain.handle("mds:icon", async (_e, url) => {
 });
 
 // ---- graceful shutdown: stop the node cleanly (H2 close) before quitting ----
-let quitting = false;
 app.on("before-quit", async (e) => {
   if (quitting) return;
   e.preventDefault();
