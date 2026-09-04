@@ -12,7 +12,7 @@
     "typecheck": "tsc -p renderer --noEmit",
     "start": "npm run build && electron .",
     "dist:mac": "npm run build && electron-builder --mac --arm64",
-    "dist:mac:signed": "APPLE_KEYCHAIN_PROFILE=minimadesk npm run dist:mac && scripts/verify-mac.sh",
+    "dist:mac:signed": "APPLE_KEYCHAIN_PROFILE=minimadesk npm run dist:mac && scripts/notarize-dmg.sh && scripts/verify-mac.sh",
     "dist:win": "npm run build && electron-builder --win",
     "dist:linux": "npm run build && electron-builder --linux"
   },
