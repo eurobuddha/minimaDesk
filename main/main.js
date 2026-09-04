@@ -57,7 +57,10 @@ function isInsideRendererDist(fileUrl) {
 
 function createWindow() {
   const cfg = config.load();
+  // Dev only: MDESK_HIDDEN=1 keeps the window invisible (never steals focus) — checks run via MDESK_SEQ.
+  const hidden = !app.isPackaged && !!process.env.MDESK_HIDDEN;
   win = new BrowserWindow({
+    show: !hidden,
     width: (cfg.window && cfg.window.w) || 1180,
     height: (cfg.window && cfg.window.h) || 780,
     // The hub's desktop layout (6-column grid, right-click menu geometry) starts at its lg breakpoint (976px).
@@ -72,7 +75,8 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      webviewTag: true                   // MiniDapps render in <webview> tabs
+      webviewTag: true,                  // MiniDapps render in <webview> tabs
+      backgroundThrottling: !hidden      // a hidden dev window must keep its timers running
     }
   });
   win.webContents.setWindowOpenHandler(windowOpenHandler);

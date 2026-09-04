@@ -416,9 +416,13 @@ const AppProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
     });
   };
 
+  // minimaDesk: the hub boots before the node answers RPC, so the first `maxima` call fails — retry every
+  // few seconds until it answers (stock MiniHUB is served by the node and never saw this).
+  const maximaRetry = useRef<any>(null);
   const getMaximaDetails = () => {
+    if (maximaRetry.current) { clearTimeout(maximaRetry.current); maximaRetry.current = null; }
     (window as any).MDS.cmd('maxima', (resp: any) => {
-      if (resp.status) {
+      if (resp && resp.status && resp.response) {
         if (resp.response.name) {
           setMaximaName(resp.response.name);
         }
@@ -426,6 +430,8 @@ const AppProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
         if (resp.response.icon) {
           setMaximaIcon(resp.response.icon);
         }
+      } else {
+        maximaRetry.current = setTimeout(getMaximaDetails, 3000);
       }
     });
   };

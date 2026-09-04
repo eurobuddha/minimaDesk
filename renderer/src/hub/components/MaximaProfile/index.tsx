@@ -17,12 +17,23 @@ const MaximaProfile = () => {
     setTimeout(() => setCopied(false), 2500);
   };
 
+  // minimaDesk: the hub boots BEFORE the node answers RPC (stock MiniHUB is served by the node, so it never
+  // saw this). The first `getaddress` fails; keep asking every few seconds until it answers, so the address
+  // + Copy button always appear without a reload.
   useEffect(() => {
-    if (loaded) {
+    if (!loaded) return;
+    let alive = true;
+    let timer: any = null;
+    const ask = () => {
       MDS.cmd('getaddress', (resp) => {
-        setAddress(resp.response.miniaddress);
+        if (!alive) return;
+        const addr = resp && resp.status && resp.response && resp.response.miniaddress;
+        if (addr) setAddress(String(addr));
+        else timer = setTimeout(ask, 3000);
       });
-    }
+    };
+    ask();
+    return () => { alive = false; if (timer) clearTimeout(timer); };
   }, [loaded]);
   /**
    * Method to extract emoji from name and display it as the name/nickname first letter
@@ -79,7 +90,8 @@ const MaximaProfile = () => {
                   <input
                     readOnly
                     value={address}
-                    className={`max-w-[64px] lg:max-w-[240px] grow text-xs text-neutral-300 cursor-pointer font-bold focus:outline-none bg-transparent truncate ml-2`}
+                    className={`max-w-[64px] lg:max-w-[480px] grow text-xs text-neutral-300 cursor-pointer font-bold focus:outline-none bg-transparent truncate ml-2`}
+                    title={address}
                   />
                 )}
                 {copied && <p className={`text-xs text-teal-300 cursor-pointer font-bold truncate ml-2`}>Copied!</p>}
