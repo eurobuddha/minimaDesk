@@ -29,6 +29,31 @@ npm run dev                     # rebuild-on-change + electron (reload with Cmd+
 npm run dist:mac    # / dist:win / dist:linux  (electron-builder; runs the renderer build first)
 ```
 
+## Signing + notarization (mac) — a clean, Gatekeeper-approved install
+`npm run dist:mac` and the CI build sign and notarize automatically **once the credentials exist**; with
+none, they produce the unsigned DMG (right-click → Open). One-time setup, all on the Apple side:
+
+1. **Apple Developer Program** (paid, developer.apple.com) for the Apple ID — Team ID `Z4JD286WF4`. Only
+   paid membership can issue the *Developer ID Application* certificate Gatekeeper trusts; the existing
+   "Apple Development" certificate on this Mac is for running on your own devices only.
+2. **Certificate**: Xcode → Settings → Accounts → (team) → Manage Certificates → + → *Developer ID
+   Application*. It lands in the login keychain; `security find-identity -v -p codesigning` lists it.
+   electron-builder discovers it by itself — nothing to configure.
+3. **Notarization credentials**: at appleid.apple.com create an *app-specific password*, then store it once:
+   ```bash
+   xcrun notarytool store-credentials minimadesk --apple-id <apple id> --team-id Z4JD286WF4 --password <app-specific password>
+   ```
+4. **Local release build**: `npm run dist:mac:signed` — signs (hardened runtime + `build/entitlements.mac.plist`),
+   notarizes through the `minimadesk` keychain profile, staples the ticket, then runs `scripts/verify-mac.sh`
+   (codesign strict verify, `spctl` Gatekeeper assessment, `stapler validate`). A DMG that passes opens on
+   any Mac with no warning.
+5. **CI** (`.github/workflows/desktop-build.yml`): export the certificate from Keychain Access as a `.p12`
+   and set the repo secrets `MAC_CERT_P12` (`base64 -i cert.p12 | pbcopy`), `MAC_CERT_PASSWORD`, `APPLE_ID`,
+   `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`; tag builds then sign, notarize and verify on the runner.
+
+Windows SmartScreen is a separate story (an OV/EV code-signing certificate, or Azure Trusted Signing); the
+Linux AppImage needs nothing.
+
 ## How it is put together
 - `main/` — Electron main process: spawns the node (`node-manager.js`), proxies RPC with the secrets
   injected (`main.js`, `rpc.js`), stores hub prefs + custom wallpaper in userData (`prefs.js`).

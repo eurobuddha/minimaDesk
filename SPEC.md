@@ -102,8 +102,10 @@ Electron main (main/*.js)  ──IPC (preload: window.minima)──▶  renderer
 
 ## 5. Not yet done / candidates
 
-- Code signing / notarisation (mac) and a signed Windows installer — currently unsigned like the
-  sibling app; store copy tells users how to get past the warnings.
+- Code signing / notarisation (mac): **wired** (hardened runtime, entitlements, `notarize: true`,
+  CI secrets, `scripts/verify-mac.sh`) but dormant until the Developer ID Application certificate + notary
+  credentials exist — see README "Signing + notarization". A signed Windows installer is still open; store
+  copy tells users how to get past the warnings meanwhile.
 - A distinct Linux build with `.deb` in addition to AppImage.
 - The hub's Joyride tour copy still references some Android-only flows.
 - `resources/jre` is produced by CI per platform; a local `dist:win` / `dist:linux` would embed the

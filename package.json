@@ -12,6 +12,7 @@
     "typecheck": "tsc -p renderer --noEmit",
     "start": "npm run build && electron .",
     "dist:mac": "npm run build && electron-builder --mac --arm64",
+    "dist:mac:signed": "APPLE_KEYCHAIN_PROFILE=minimadesk npm run dist:mac && scripts/verify-mac.sh",
     "dist:win": "npm run build && electron-builder --win",
     "dist:linux": "npm run build && electron-builder --linux"
   },
@@ -66,7 +67,10 @@
     "mac": {
       "category": "public.app-category.finance",
       "icon": "build/icon.icns",
-      "identity": null,
+      "identity": "Developer ID Application",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "notarize": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "target": [

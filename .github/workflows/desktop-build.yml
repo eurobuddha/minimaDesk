@@ -5,6 +5,16 @@ name: Build desktop (mac / win / linux)
 # resources/jre (gitignored), so the extraResources mapping (resources/jre -> jre) needs no change.
 # Same shape as minimacore-desktop's workflow, plus: fetch the (gitignored, 69 MB) classic jar and
 # build the Vite renderer before packaging.
+#
+# SIGNING + NOTARIZATION (wired; dormant until the repo secrets exist — without them the mac build is
+# unsigned and Gatekeeper wants right-click → Open):
+#   MAC_CERT_P12        base64 of the "Developer ID Application" certificate exported as .p12
+#   MAC_CERT_PASSWORD   the .p12 password
+#   APPLE_ID            the Apple ID that owns the Developer Program membership
+#   APPLE_APP_SPECIFIC_PASSWORD   an app-specific password from appleid.apple.com (NOT the account password)
+#   APPLE_TEAM_ID       the 10-character Team ID (Z4JD286WF4)
+# electron-builder reads CSC_LINK / CSC_KEY_PASSWORD to sign (hardened runtime + entitlements) and the
+# APPLE_* vars to notarize and staple; the Verify step then proves Gatekeeper accepts the result.
 on:
   workflow_dispatch:
   push:
@@ -66,7 +76,21 @@ jobs:
 
       - name: Build installer
         shell: bash
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npx electron-builder ${{ matrix.ebflag }} --publish never
+
+      # Prove the mac build is what Gatekeeper wants: Developer ID signature, hardened runtime, notarization
+      # ticket stapled to the DMG. Only meaningful once the signing secrets exist.
+      - name: Verify signature + notarization (mac)
+        if: matrix.platform == 'mac' && env.CERT != ''
+        env:
+          CERT: ${{ secrets.MAC_CERT_P12 }}
+        run: scripts/verify-mac.sh
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
