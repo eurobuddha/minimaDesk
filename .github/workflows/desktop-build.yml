@@ -74,14 +74,36 @@ jobs:
       - name: Build renderer (Vite)
         run: npm run build
 
-      - name: Build installer
+      # Export the signing/notarization env ONLY when the secrets exist: an empty CSC_LINK is not "unset" to
+      # electron-builder — it is a path, and the build dies with "not a file" (seen on v0.7.11).
+      - name: Configure mac signing (when the secrets exist)
+        if: matrix.platform == 'mac'
         shell: bash
         env:
-          CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          P12: ${{ secrets.MAC_CERT_P12 }}
+          P12_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          A_ID: ${{ secrets.APPLE_ID }}
+          A_PW: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          A_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$P12" ]; then
+            echo "CSC_LINK=$(echo "$P12" | tr -d '\n\r ')" >> "$GITHUB_ENV"
+            echo "CSC_KEY_PASSWORD=$P12_PASSWORD" >> "$GITHUB_ENV"
+            echo "signing: Developer ID certificate configured"
+          else
+            echo "signing: no MAC_CERT_P12 secret — unsigned build"
+          fi
+          if [ -n "$A_ID" ] && [ -n "$A_PW" ] && [ -n "$A_TEAM" ]; then
+            echo "APPLE_ID=$A_ID" >> "$GITHUB_ENV"
+            echo "APPLE_APP_SPECIFIC_PASSWORD=$A_PW" >> "$GITHUB_ENV"
+            echo "APPLE_TEAM_ID=$A_TEAM" >> "$GITHUB_ENV"
+            echo "notarization: credentials configured"
+          else
+            echo "notarization: APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID not all set — skipped"
+          fi
+
+      - name: Build installer
+        shell: bash
         run: npx electron-builder ${{ matrix.ebflag }} --publish never
 
       # Prove the mac build is what Gatekeeper wants: Developer ID signature, hardened runtime, notarization
