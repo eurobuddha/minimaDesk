@@ -2,8 +2,8 @@
   "dapps": [
     {
       "name": "minimaCore App Store",
-      "file": "minimaCore-App-Store-0.3.0.mds.zip",
-      "version": "0.3.0",
+      "file": "minimaCore-App-Store-0.3.1.mds.zip",
+      "version": "0.3.1",
       "write": true
     },
     {
