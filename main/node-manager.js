@@ -452,8 +452,35 @@ class NodeManager extends EventEmitter {
     const relay = currentRelay();
     const mls = config.load().mls || { mode: "relay", custom: "" };
     try {
-      try { await rpc("connect host:" + relay); } catch (e) {}
-      await new Promise(res => setTimeout(res, 3500));
+      // Connect ONLY if we are not already attached. `connect` opens a fresh P2P socket every
+      // time and classic never drops the old one; a heal every 15 min leaked one socket per
+      // heal until the relay's per-source cap (16) refused every other device behind this NAT
+      // (seen live: 16 sockets from this app to openproject, 510 refusals in 3 h).
+      let linked = 0;
+      try {
+        const n = (await rpc("network").catch(() => ({}))).response || {};
+        const mine = [];
+        for (const c of (Array.isArray(n.connections) ? n.connections : [])) {
+          const byPort = String(c.host || "") + ":" + String(c.port || "");
+          const byMinimaPort = String(c.host || "") + ":" + String(c.minimaport || "");
+          if (byPort === relay || byMinimaPort === relay) mine.push(c);
+        }
+        // Keep the newest link, drop every duplicate (by uid), as setMaximaRelay does.
+        mine.sort((a, b) => Number(b.uid || 0) - Number(a.uid || 0));
+        for (const c of mine.slice(1)) {
+          if (/^[0-9A-Za-z]+$/.test(String(c.uid || ""))) {
+            await rpc("disconnect uid:" + c.uid).catch(() => {});
+            this.log("[app] dropped duplicate relay connection uid " + c.uid);
+          }
+        }
+        linked = mine.length ? 1 : 0;
+      } catch (e) { /* best effort - fall through to connect */ }
+      if (!linked) {
+        try { await rpc("connect host:" + relay); } catch (e) {}
+        await new Promise(res => setTimeout(res, 3500));
+      } else {
+        this.log("[app] relay " + relay + " already connected - not reconnecting");
+      }
       const info = (await rpc("maxima action:info").catch(() => ({}))).response || {};
       const pinnedNow = pinnedMls(info);
       if (mls.mode === "relay") {
