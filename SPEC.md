@@ -24,16 +24,19 @@ an isolated instance. Windows/Linux builds come from CI (`.github/workflows/desk
 
 ```
 Electron main (main/*.js)  ──IPC (preload: window.minima)──▶  renderer/dist (one React app)
-  node-manager.js  spawn the classic jar, health poll, provisioning, Maxima wiring, portmap
+  node-manager.js  spawn the node (Parlons Node by default, or the classic jar), health poll, provisioning,
+                   classic-Maxima wiring (classic kind), portmap, orphan reclaim
+  parlons.js       the Parlons account: status, one-time panel ticket, open in browser (Parlons kind)
+  updater.js       the one-app store feed (minimadesk.json): check, verified download
   provision.js     bundled dapps: install / update in place / catalog check (sha256-verified)
   portmap.js       UPnP / NAT-PMP (lifted verbatim from minimaCore Desktop)
   main.js          IPC surface, window.open policy, icon proxy, prefs, wallpaper, RPC credentials
                                                   │
   <Shell>  renderer/src/shell/**                  ▼
-    TitleBar: tabs · [+] · Store · Terminal · Logs · NodeChip ▾ (popover)
+    TitleBar: tabs · [+] · Store · Terminal · Parlons · Logs · [Update pill] · NodeChip ▾ (popover)
     Stage: .stage-home = <HubApp/> (verbatim MiniHUB 0.24.4 fork, renderer/src/hub/**)
            .stage-webviews = one <webview partition=persist:mds> per open dapp
-           Node logs view
+           Node logs view · Parlons view (<webview partition=persist:parlons> = the account's panel)
     PendingPrompt · ShellNotice
 ```
 
@@ -49,6 +52,10 @@ Electron main (main/*.js)  ──IPC (preload: window.minima)──▶  renderer
   goes to the OS browser, nothing else. `file:` is never opened from web content. `will-attach-webview`
   strips preload/node integration. The self-signed MDS cert is trusted for one loopback host:port only.
 - **Dapps run untouched.** Any standard `.mds.zip` installs and runs; Maxima rides the node's own port.
+- **Two node kinds (0.7.15).** `parlons`: `parlons-node.jar`, MDS served by the node (loopback, same password
+  file via `-Dparlons.node.conf`), the Parlons account + relay-when-contributing; the node's admin RPC is
+  loopback-only and unauthenticated (rpc.js's Basic header is ignored). `minima`: the classic jar as before.
+  Adoption refuses a running node of the other kind; reclaim knows both jars.
 
 ## 2. Features (shipped — verified)
 
@@ -82,10 +89,12 @@ Electron main (main/*.js)  ──IPC (preload: window.minima)──▶  renderer
 ## 3. Release (the standing rhythm)
 
 1. `scripts/sync-bundled-dapps.sh` (refresh the bundled dapps), bump `version`, commit, push.
-2. `git tag vX.Y.Z && git push origin vX.Y.Z` → CI builds `minimaDesk-X.Y.Z-arm64.dmg`,
-   `minimaDesk.Setup.X.Y.Z.exe`, `minimaDesk-X.Y.Z.AppImage` and attaches them to the Release.
-3. Update the three catalog rows in `desktop/minima-core-apks/apks.json` (`version`, `versionCode` =
-   major·10000 + minor·100 + patch, `file` → the release assets), commit, push (pre-push runs `check.py`).
+2. `npm run dist:mac:signed` (signed, notarized, stapled, verified DMG).
+3. `scripts/release-desktop.sh X.Y.Z "notes"` — tags, waits for CI (`minimaDesk-X.Y.Z-arm64.dmg`,
+   `minimaDesk.Setup.X.Y.Z.exe`, `minimaDesk-X.Y.Z.AppImage`), uploads the signed DMG over CI's, writes the
+   three feed rows to `https://eurobuddha.com/pandaapps/minimadesk.json`, updates the three catalog rows in
+   `desktop/minima-core-apks/apks.json` (`scripts/publish-app.py`; pre-push runs `check.py`). It exits 1
+   unless mac-arm64, win-x64 and linux-x64 are all live — a release is not a release until all three are.
 4. Local `npm run dist:mac` remains the quick path for installing over the top on this Mac.
 
 ## 4. Verification (per change)

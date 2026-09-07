@@ -1,20 +1,28 @@
 # minimaDesk — working rules
 
 **What this is.** A polished Electron desktop platform: it runs a **full Minima
-classic node** (`resources/minima.jar` — the official `minima-global` jar, WITH
-MDS + Maxima) and opens installed MDS MiniDapps as **tabs**, in the Minima 2024
-brand. "MiniHub in a party dress." True backwards compatibility (real node, real
-MDS, real dapps). Maxima rides the node's own base port; the node forwards it.
+node** and opens installed MDS MiniDapps as **tabs**, in the Minima 2024 brand.
+"MiniHub in a party dress." True backwards compatibility (real node, real MDS,
+real dapps). Since 0.7.15 the node is the **Parlons Node** by default
+(`resources/parlons-node.jar`, gitignored; `npm run fetch:parlons`, version pinned in
+`package.json` `parlonsNode`): MDS served by the node itself (fork re-import, loopback
+only) + the Parlons account in the Parlons tab + a Maxima relay when contributing. The
+**classic** official jar (`resources/minima.jar`, MDS + classic Maxima) stays as the
+second kind (Settings → minimaDesk). Template for every Parlons-side decision:
+`desktop/minimacore-desktop` (do not redesign what it settled; port it).
 
-**NOT the old app.** `desktop/minimacore-desktop` is frozen. Its bundled jar was a
-*stripped* `minima-core` fork (no MDS, no Maxima) — the wrong base — which is why
-it hardcoded JS dapp ports. minimaDesk deliberately runs the FULL classic jar with
-`-mdsenable`. Reuse the old app's *patterns* (node spawn, RPC client) — never its
-stripped jar or its bespoke per-dapp code.
+**Not the old app's dapp layer.** `desktop/minimacore-desktop` has no MDS layer and
+bespoke per-dapp code; minimaDesk runs real MDS (served by the Parlons Node since the
+fork re-imported it, or by the classic jar). Reuse minimaCore's node/Parlons patterns
+(node-manager, parlons.js, updater, release script) — never its per-dapp code.
 
 ## Node facts
 - Base port default **20001** (coexists with 9001/11001/12001/16001 nodes). MDS =
-  base+2, RPC = base+4.
+  base+2, RPC = base+4; Parlons kind: gateway = base+584, panel = base+586, relay = base (shared).
+- Parlons kind: the conf file carries `mdspassword` only (the node REFUSES rpcpassword/dbpassword:
+  its admin RPC is loopback-only, unauthenticated); the bundled JRE MUST jlink `jdk.httpserver`.
+- NEVER run a gate/dev node on a copy of the owner's live data - fresh identity in a scratch dir
+  (`MDESK_USERDATA=<dir>` with its own config.json + dataFolder); kill scratch nodes; check for orphans.
 - Secrets (RPC password, MDS password) are generated once and stored encrypted
   0600 in userData — the renderer never sees them; it talks through the IPC proxy.
 - Management (list/install/uninstall/permission) is RPC (`mds action:…`); dapp UIs
@@ -34,10 +42,12 @@ Source of truth: `support/minima-mediakit/Minima_Website_2024_design_tokens.md` 
 only, never fields of colour. **Manrope** on the 2024 type scale; mono for machine
 values. Full identifiers always (RULE 1) — never truncate an Mx address / txid.
 
-## Releasing
-`git tag vX.Y.Z && git push origin vX.Y.Z` → `.github/workflows/desktop-build.yml` builds mac/win/linux
-(each runner jlinks its own JRE, fetches the jar, builds the renderer) and attaches the installers to the
-GitHub Release. Then update the three **MinimaClassic Desktop** rows in `desktop/minima-core-apks/apks.json`.
+## Releasing - ALL THREE platforms, every release (hard rule, as minimaCore Desktop)
+`npm run dist:mac:signed` then `scripts/release-desktop.sh X.Y.Z "notes"`: tags, waits for the CI matrix
+(mac/win/linux; each runner jlinks its own JRE with jdk.httpserver, fetches both jars, builds the renderer),
+uploads the signed DMG over CI's, writes the three rows of the update feed
+(`https://eurobuddha.com/pandaapps/minimadesk.json`) and the three **MinimaClassic Desktop** catalog rows,
+and exits 1 unless mac-arm64 + win-x64 + linux-x64 are live. Never `publish-desktop.sh` alone as "the release".
 Product spec: `SPEC.md`.
 
 ## Versioning guardrail
