@@ -19,7 +19,7 @@
  * Stop is graceful: RPC `quit` (clean H2/db shutdown) → SIGTERM → SIGKILL fallback.
  */
 const { app } = require("electron");
-const { spawn } = require("child_process");
+const { spawn, execFileSync } = require("child_process");
 const EventEmitter = require("events");
 const fs = require("fs");
 const path = require("path");
@@ -58,6 +58,46 @@ function pinnedMls(info) {
   if (isMlsIdentity(info.staticmls)) return String(info.staticmls);
   if (info.staticmls === true && isMlsIdentity(info.mls)) return String(info.mls);
   return "";
+}
+
+
+// ---- a node left behind by an earlier launch (the app crashed / was force-quit / its stop threw) ----
+// Adoption above covers the node that still answers OUR rpc. These cover the rest: a node of ours that
+// does not answer (mid-boot, hung, a rotated secret) still holds the port and the H2 databases, so a
+// spawn dies with "Address already in use" / "Database may be already in use" (seen live on minimaCore
+// Desktop 2026-09-07). Find it by our pidfile and by whoever LISTENS on our port; if its command line is
+// a minima node on our port or data folder, stop it (bounded); a port held by anything else is named.
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+function alive(pid) { try { process.kill(pid, 0); return true; } catch (e) { return e && e.code === "EPERM"; } }
+function listeners(port) {
+  try {
+    if (process.platform === "win32") {
+      const out = execFileSync("netstat", ["-ano", "-p", "tcp"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+      const pids = new Set();
+      for (const line of out.split(/\r?\n/)) {
+        const m = line.trim().match(/^TCP\s+\S+:(\d+)\s+\S+\s+LISTENING\s+(\d+)$/i);
+        if (m && parseInt(m[1], 10) === port) pids.add(parseInt(m[2], 10));
+      }
+      return [...pids];
+    }
+    const out = execFileSync("lsof", ["-nP", "-t", "-iTCP:" + port, "-sTCP:LISTEN"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    return [...new Set(out.split(/\s+/).filter(Boolean).map(x => parseInt(x, 10)).filter(n => n > 0))];
+  } catch (e) { return []; }
+}
+function commandOf(pid) {
+  try {
+    if (process.platform === "win32") {
+      const out = execFileSync("wmic", ["process", "where", "processid=" + pid, "get", "commandline", "/value"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+      const m = out.match(/CommandLine=(.*)/); return m ? m[1].trim() : "";
+    }
+    return execFileSync("ps", ["-o", "command=", "-p", String(pid)], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch (e) { return ""; }
+}
+function killPid(pid, signal) {
+  try {
+    if (process.platform === "win32") execFileSync("taskkill", ["/PID", String(pid), "/T", signal === "SIGKILL" ? "/F" : "/T"], { stdio: "ignore" });
+    else process.kill(pid, signal);
+  } catch (e) {}
 }
 
 class NodeManager extends EventEmitter {
@@ -174,6 +214,7 @@ class NodeManager extends EventEmitter {
 
   async _start() {
     this.lastError = null;
+    this.fatalHint = "";
     this.setState("starting");
     // Adopt an already-running node before spawning. A previous minimaDesk instance
     // that didn't fully exit still holds 20001/03/05 with OUR secret; spawning a second
@@ -190,6 +231,8 @@ class NodeManager extends EventEmitter {
       }
     } catch (e) { /* nothing there — spawn our own */ }
     if (this.state === "stopping" || this.state === "stopped") return;   // stop() raced the adopt probe
+    const blocked = await this.reclaimStaleNode();
+    if (blocked) { this.lastError = blocked; this.setState("error"); return; }
     const args = this.buildArgs();
     this.log("[app] starting node: java " + args.join(" "));   // no secrets on argv any more (see -conf)
     let p;
@@ -197,6 +240,11 @@ class NodeManager extends EventEmitter {
     catch (e) { this.lastError = "could not launch java: " + e.message; this.setState("error"); return; }
     this.proc = p;
     this.startedTs = Date.now();
+    try {
+      const cfg = config.load();
+      fs.writeFileSync(this.pidfilePath(), JSON.stringify({ pid: p.pid, port: config.basePort(), jar: this.jarPath(),
+        dataDir: cfg.dataFolder || config.defaultDataFolder(), startedAt: this.startedTs }));
+    } catch (e) {}
     p.stdout.on("data", d => this.log(String(d)));
     p.stderr.on("data", d => this.log(String(d)));
     p.on("error", e => {
@@ -211,6 +259,7 @@ class NodeManager extends EventEmitter {
       if (this.proc !== p) return;                 // an older child (after a racing restart) — ignore
       this.log("[app] node exited code=" + code + " sig=" + sig);
       this.proc = null;
+      try { fs.unlinkSync(this.pidfilePath()); } catch (e) {}
       this.stopHealth();
       // Only on an UNEXPECTED exit: a planned stop already released the mapping, and restart() would race it.
       if (this.state !== "stopping") {
@@ -228,9 +277,9 @@ class NodeManager extends EventEmitter {
           this.setState("starting");
           setTimeout(() => { if (!this.proc && !this.adopted && this.state === "starting") this.start().catch(() => {}); }, SELF_RESTART_DELAY_MS);
         } else {
-          this.lastError = code === 0
+          this.lastError = this.fatalHint || (code === 0
             ? "node keeps shutting itself down — check Settings → Startup parameters and Node logs, then Start node"
-            : "node exited unexpectedly (" + (code ?? sig) + ")";
+            : "node exited unexpectedly (" + (code ?? sig) + ")");
           this.setState("error");
         }
       } else this.setState("stopped");
@@ -273,6 +322,47 @@ class NodeManager extends EventEmitter {
     await gone;
   }
   async restart() { await this.stop(); await this.start(); }
+
+  pidfilePath() { return path.join(app.getPath("userData"), "node.pid"); }
+
+  /** "" = go ahead; else the reason not to spawn (a foreign owner of our port, or a node we could not stop). */
+  async reclaimStaleNode() {
+    const cfg = config.load();
+    const port = config.basePort(), dataDir = cfg.dataFolder || config.defaultDataFolder();
+    const candidates = new Map();
+    try {
+      const pf = JSON.parse(fs.readFileSync(this.pidfilePath(), "utf8"));
+      if (pf && pf.pid && alive(pf.pid)) candidates.set(pf.pid, commandOf(pf.pid));
+      else try { fs.unlinkSync(this.pidfilePath()); } catch (e) {}
+    } catch (e) { /* no pidfile */ }
+    for (const pid of listeners(port)) if (!candidates.has(pid)) candidates.set(pid, commandOf(pid));
+    candidates.delete(process.pid);
+    const isOurs = (cmd) => /minima\.jar/.test(cmd) && (cmd.includes(dataDir) || cmd.includes("-port " + port));
+    for (const [pid, cmd] of candidates) {
+      if (!isOurs(cmd)) {
+        this.portOwner = { pid, command: cmd || "(unknown)" };
+        return "port " + port + " is in use by " + (cmd ? cmd.slice(0, 120) : "another program") + " (pid " + pid + ") — choose another base port in Settings, or stop that program";
+      }
+      this.log("[app] a node from an earlier launch is still running (pid " + pid + ") and does not answer our rpc — stopping it before starting");
+      try { await Promise.race([rpcCall(config.rpcPort(), config.rpcSecret(), "quit"), sleep(8000)]); } catch (e) {}
+      for (let i = 0; i < 16 && alive(pid); i++) await sleep(500);
+      if (alive(pid)) { killPid(pid, "SIGTERM"); for (let i = 0; i < 10 && alive(pid); i++) await sleep(500); }
+      if (alive(pid)) { killPid(pid, "SIGKILL"); for (let i = 0; i < 6 && alive(pid); i++) await sleep(500); }
+      if (alive(pid)) return "could not stop the node left running by an earlier launch (pid " + pid + ")";
+      this.log("[app] reclaimed a node left running by an earlier launch (pid " + pid + ")");
+    }
+    for (let i = 0; i < 10 && listeners(port).length; i++) await sleep(500);
+    try { fs.unlinkSync(this.pidfilePath()); } catch (e) {}
+    this.portOwner = null;
+    return "";
+  }
+
+  /** Last resort on the way out of the process: no waiting, no RPC — the node must not outlive us. */
+  killNow() {
+    const p = this.proc;
+    if (p) { try { p.kill("SIGKILL"); } catch (e) {} this.proc = null; }
+    try { fs.unlinkSync(this.pidfilePath()); } catch (e) {}
+  }
 
   // ---- network role (Settings → Network) ----
 
@@ -503,7 +593,7 @@ class NodeManager extends EventEmitter {
   setState(s) { this.state = s; this.emit("status", this.snapshot()); }
   snapshot() {
     const cfg = config.load();
-    return { state: this.state, health: this.health, lastError: this.lastError,
+    return { state: this.state, health: this.health, lastError: this.lastError, portOwner: this.portOwner || null,
              provision: { done: this.provisionDone, busy: this.provisionBusy },
              contribute: !!cfg.contribute, portmap: portmap.status(),
              maximaRelay: currentRelay(), mls: cfg.mls || { mode: "relay", custom: "" },
@@ -516,6 +606,11 @@ class NodeManager extends EventEmitter {
     return { seq: this.logSeq, lines };
   }
   log(line) {
+    if (/Database may be already in use|locked by another process|Address already in use|BindException/i.test(String(line))) {
+      this.fatalHint = /Address already in use|BindException/i.test(String(line))
+        ? "another node is still listening on port " + config.basePort() + " — Restart node stops it and starts again"
+        : "another node still holds this data folder's databases — Restart node stops it and starts again";
+    }
     for (let l of String(line).split("\n")) {
       if (!l.trim()) continue;
       l = l.replace(/phrase:"[^"]*"/g, 'phrase:"•••"').replace(/privatekey:0x[0-9A-Fa-f]+/g, "privatekey:•••");

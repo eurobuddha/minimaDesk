@@ -388,4 +388,9 @@ app.on("before-quit", async (e) => {
   try { await node.stop(); } catch (err) {}
   app.quit();
 });
+// The node must never outlive the app: before-quit stops it gracefully; these are the last resort for
+// every other way out (uncaught exception, a failed stop). A SIGKILL of the app itself is what
+// reclaimStaleNode() on the next start is for.
+app.on("will-quit", () => { try { node.killNow(); } catch (e) {} });
+process.on("exit", () => { try { node.killNow(); } catch (e) {} });
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
