@@ -21,6 +21,11 @@ const IconTerminal = () => (
     <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9l3 3-3 3" /><path d="M12 15h5" />
   </svg>
 );
+const IconParlons = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M4 5h16v11H9l-5 4z" /><path d="M8 9h8" /><path d="M8 12.5h5" />
+  </svg>
+);
 const IconLogs = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4" /><path d="M9 12h6" /><path d="M9 16h6" />
@@ -46,6 +51,7 @@ function TabItem({ tab }: { tab: Tab }) {
       {tab.kind === 'home' && <MinimaLogo />}
       {tab.kind === 'dapp' && (icon ? <img className="ico" src={icon} alt="" /> : <div className="mono" aria-hidden="true">{(tab.name || '?').trim().charAt(0).toUpperCase()}</div>)}
       {tab.kind === 'logs' && <IconLogs />}
+      {tab.kind === 'parlons' && <IconParlons />}
       <span className="ttl">{tab.name}</span>
       {tab.kind !== 'home' && (
         <button className="x" type="button" title="Close tab" aria-label={`Close ${tab.name}`} onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}>
@@ -60,6 +66,8 @@ function NodeChip({ onClick, open }: { onClick: () => void; open: boolean }) {
   const status = useShellStatus();
   const state = status ? status.state : 'starting';
   const h = status && status.health;
+  const parlons = status && status.kind === 'parlons';
+  const acct = status && status.parlons;
   const dot = state === 'running' ? 'on' : state === 'error' ? 'err' : state === 'stopped' ? '' : 'busy';
   const label = state === 'running' ? 'Node' : state === 'error' ? 'Node error' : state === 'stopped' ? 'Node stopped' : state === 'stopping' ? 'Stopping…' : 'Starting…';
   return (
@@ -73,7 +81,9 @@ function NodeChip({ onClick, open }: { onClick: () => void; open: boolean }) {
           <span className="sep" aria-hidden="true">·</span>
           <span className="dim">{h.connections || 0} peers</span>
           <span className="sep" aria-hidden="true">·</span>
-          <span className={h.maxima ? '' : 'dim'}>Maxima {h.maxima ? 'on' : 'off'}</span>
+          {parlons
+            ? <span className={acct && acct.ready ? '' : 'dim'}>{acct && acct.error ? 'account error' : acct && acct.ready ? 'account up' : 'account starting'}</span>
+            : <span className={h.maxima ? '' : 'dim'}>Maxima {h.maxima ? 'on' : 'off'}</span>}
         </>
       )}
     </button>
@@ -81,7 +91,8 @@ function NodeChip({ onClick, open }: { onClick: () => void; open: boolean }) {
 }
 
 export default function TitleBar() {
-  const { tabs, activeId, dapps, openView, openNamedDapp, installFromFile } = useShell();
+  const { tabs, activeId, dapps, ports, openView, openNamedDapp, installFromFile } = useShell();
+  const parlonsKind = !!ports && ports.kind === 'parlons';
   const [pop, setPop] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
   const isMac = window.minima && window.minima.platform === 'darwin';
@@ -119,6 +130,7 @@ export default function TitleBar() {
       <div className="spacer" />
       <button type="button" className={`tool ${isActive(store) ? 'active' : ''}`} title={STORE_DAPP} aria-label={STORE_DAPP} onClick={() => openNamedDapp(STORE_DAPP)}><IconStore /></button>
       <button type="button" className={`tool ${isActive(term) ? 'active' : ''}`} title={TERMINAL_DAPP} aria-label={TERMINAL_DAPP} onClick={() => openNamedDapp(TERMINAL_DAPP)}><IconTerminal /></button>
+      {parlonsKind && <button type="button" className={`tool ${activeId === 'parlons' ? 'active' : ''}`} title="Parlons - your account on this node" aria-label="Parlons" onClick={() => openView('parlons')}><IconParlons /></button>}
       <button type="button" className={`tool ${activeId === 'logs' ? 'active' : ''}`} title="Node logs" aria-label="Node logs" onClick={() => openView('logs')}><IconLogs /></button>
       <NodeChip open={pop} onClick={() => setPop((v) => !v)} />
       {pop && <NodePopover onClose={() => setPop(false)} />}

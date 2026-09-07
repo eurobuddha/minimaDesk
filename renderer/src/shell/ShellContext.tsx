@@ -14,7 +14,7 @@ import { bus } from './bus';
 import { AUTO_WRITE, parseDappUrl } from './bridge';
 import { setShellHandlers } from '../hub/shell-bridge';
 
-export type TabKind = 'home' | 'dapp' | 'logs';
+export type TabKind = 'home' | 'dapp' | 'logs' | 'parlons';
 export interface Tab {
   id: string;
   kind: TabKind;
@@ -30,7 +30,8 @@ export interface PendingItem { uid: string; command: string; minidapp?: any }
 export interface OpenDappArgs { uid: string; sessionid?: string; name?: string; icon?: string; hash?: string }
 
 const HOME_TAB: Tab = { id: 'home', kind: 'home', name: 'Home', nav: 0, hashNav: 0 };
-const VIEW_NAMES: Record<string, string> = { logs: 'Node logs' };
+const VIEW_NAMES: Record<string, string> = { logs: 'Node logs', parlons: 'Parlons' };
+export type NativeViewKind = 'logs' | 'parlons';
 const POLL_MS = 4000;
 
 interface ShellValue {
@@ -45,7 +46,7 @@ interface ShellValue {
   openDapp: (a: OpenDappArgs) => Promise<void>;
   openDappUrl: (url: string) => Promise<void>;
   openNamedDapp: (name: string) => Promise<void>;
-  openView: (kind: 'logs') => void;
+  openView: (kind: NativeViewKind) => void;
   switchTab: (id: string) => void;
   closeTab: (id: string) => void;
   installFromFile: () => Promise<any>;
@@ -216,7 +217,7 @@ export const ShellProvider: React.FC<React.PropsWithChildren<{ initialPorts: Por
     });
   }, []);
 
-  const openView = useCallback((kind: 'logs') => {
+  const openView = useCallback((kind: NativeViewKind) => {
     setTabs((ts) => (ts.some((t) => t.id === kind) ? ts : [...ts, { id: kind, kind, name: VIEW_NAMES[kind], nav: 0, hashNav: 0 }]));
     setActiveId(kind);
   }, []);
@@ -329,6 +330,9 @@ export const ShellProvider: React.FC<React.PropsWithChildren<{ initialPorts: Por
       openDapp: (a) => latest.current.openDapp(a),
       openNative: (v) => latest.current.openView(v),
     });
+    // Verification hook (MDESK_SEQ drives the shell from executeJavaScript). Nothing here the hub cannot
+    // already do through shell-bridge, so it is no extra privilege for page content.
+    (window as any).__shell = { openView: (v: NativeViewKind) => latest.current.openView(v), openDapp: (a: OpenDappArgs) => latest.current.openDapp(a) };
   }, []);
 
   const activeTab = tabs.find((t) => t.id === activeId) || HOME_TAB;

@@ -7,7 +7,7 @@
  * The shell registers its handlers once at boot (ShellContext).
  */
 export type OpenDappArgs = { uid: string; sessionid?: string; name?: string; icon?: string; hash?: string };
-export type NativeView = 'logs';
+export type NativeView = 'logs' | 'parlons';
 
 type Handlers = {
   openDapp: (a: OpenDappArgs) => void | Promise<void>;

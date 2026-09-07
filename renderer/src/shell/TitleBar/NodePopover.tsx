@@ -25,6 +25,8 @@ export default function NodePopover({ onClose }: { onClose: () => void }) {
 
   const h = status && status.health;
   const state = status ? status.state : 'starting';
+  const parlons = !!status && status.kind === 'parlons';
+  const acct = status && status.parlons;
 
   const copy = async () => {
     if (!maximaAddress) return;
@@ -68,17 +70,20 @@ export default function NodePopover({ onClose }: { onClose: () => void }) {
         <div className="row"><span className="k">Status</span><span className={`v ${state === 'running' ? 'ok' : state === 'error' ? 'bad' : ''}`}>{state}{status && status.lastError ? ` — ${status.lastError}` : ''}</span></div>
         <div className="row"><span className="k">Block</span><span className="v">{h ? Number(h.block || 0).toLocaleString('en-US') : '—'}</span></div>
         <div className="row"><span className="k">Connections</span><span className="v">{h ? h.connections : '—'}</span></div>
-        <div className="row"><span className="k">Maxima</span><span className={`v ${h && h.maxima ? 'ok' : ''}`}>{h ? (h.maxima ? 'online' : 'offline') : '—'}</span></div>
+        <div className="row"><span className="k">Node kind</span><span className="v">{parlons ? `Parlons Node${acct && acct.version ? ' ' + acct.version : ''}` : 'classic Minima node'}</span></div>
+        {parlons
+          ? <div className="row"><span className="k">Parlons account</span><span className={`v ${acct && acct.ready ? 'ok' : acct && acct.error ? 'bad' : ''}`}>{acct && acct.error ? `error — ${acct.error}` : acct && acct.ready ? 'up' : 'starting…'}</span></div>
+          : <div className="row"><span className="k">Maxima</span><span className={`v ${h && h.maxima ? 'ok' : ''}`}>{h ? (h.maxima ? 'online' : 'offline') : '—'}</span></div>}
         <div className="row"><span className="k">Role</span><span className="v">{status ? (status.contribute ? 'contributing (accepts inbound)' : 'light node (outbound only)') : '—'}</span></div>
         {status && status.contribute && <div className="row"><span className="k">Inbound</span><span className={`v ${h && (h.incoming || 0) > 0 ? 'ok' : ''}`}>{h && (h.incoming || 0) > 0 ? `reachable — ${h.incoming} incoming` : (status.portmap ? status.portmap.state.replace('_', ' ') : '—')}</span></div>}
         <div className="row"><span className="k">Wallet</span><span className={`v ${h && h.locked ? 'ok' : ''}`}>{h ? (h.locked ? 'locked' : 'unlocked') : '—'}</span></div>
-        <div className="row"><span className="k">Ports</span><span className="v">{ports ? `p2p ${ports.base} · mds ${ports.mds} · rpc ${ports.rpc}` : '—'}</span></div>
+        <div className="row"><span className="k">Ports</span><span className="v">{ports ? `p2p ${ports.base} · mds ${ports.mds} · rpc ${ports.rpc}${parlons ? ` · panel ${ports.panel}` : ''}` : '—'}</span></div>
         <div className="row"><span className="k">Uptime</span><span className="v">{status ? fmtUptime(status.uptimeMs) : '—'}</span></div>
         <div className="row"><span className="k">Node version</span><span className="v">{h && h.version ? h.version : '—'}</span></div>
         <div className="row"><span className="k">minimaDesk</span><span className="v">{ports ? ports.appVersion : '—'}</span></div>
       </div>
 
-      <div className="addr core-black-contrast rounded relative overflow-hidden">
+      {!parlons && <div className="addr core-black-contrast rounded relative overflow-hidden">
         <div className="relative text-white p-3 text-sm flex items-center justify-between">
           <span>Your Maxima contact address</span>
           <button type="button" className="text-sm text-core-grey-80 hover:text-white nodrag" onClick={copy} disabled={!maximaAddress}>
@@ -89,7 +94,7 @@ export default function NodePopover({ onClose }: { onClose: () => void }) {
           {/* the full address, always — it only exists to be copied and pasted */}
           <div className="val">{maximaAddress || 'Waiting for Maxima…'}</div>
         </div>
-      </div>
+      </div>}
 
       <div className="heal">
         <button
@@ -100,16 +105,17 @@ export default function NodePopover({ onClose }: { onClose: () => void }) {
         >
           {restartLabel}
         </button>
-        <button
+        {!parlons && <button
           type="button"
           className="w-full mt-2 px-4 py-3 rounded font-bold text-white core-black-contrast-3 hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed nodrag"
           disabled={healing || restarting || state !== 'running'}
           onClick={heal}
         >
           {healing ? 'Healing…' : 'Heal Maxima'}
-        </button>
+        </button>}
         <div className={`msg ${msg.cls}`}>{msg.text || (state === 'running'
-          ? 'Restart: stops the node cleanly and starts it again (after a resync, restore or reset). Heal: reconnects the relay, re-pins the static MLS and refreshes every contact.'
+          ? (parlons ? 'Restart: stops the node cleanly and starts it again (after a resync, restore or reset). Your Parlons account, its relays and pairing live in the Parlons tab.'
+                     : 'Restart: stops the node cleanly and starts it again (after a resync, restore or reset). Heal: reconnects the relay, re-pins the static MLS and refreshes every contact.')
           : 'The node is not running. Start it here — no need to quit the app.')}</div>
       </div>
       <div className="foot"><span /><button type="button" className="text-core-grey-80 hover:text-white bg-transparent nodrag" onClick={onClose}>Close</button></div>

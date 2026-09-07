@@ -2,6 +2,7 @@ import HubApp from '../../hub/App';
 import { useShell } from '../ShellContext';
 import DappWebview from './DappWebview';
 import LogsView from '../views/LogsView';
+import ParlonsView from '../views/ParlonsView';
 
 /**
  * All layers stay mounted; only `display` changes. Webviews must never unmount when switching
@@ -22,6 +23,10 @@ export default function Stage() {
       </div>
       <div className="stage-layer stage-view" style={show(activeId === 'logs', 'flex')}>
         <LogsView active={activeId === 'logs'} />
+      </div>
+      {/* the Parlons panel webview must never unmount on a tab switch (it would reload the account's session) */}
+      <div className="stage-layer stage-view stage-parlons" style={show(activeId === 'parlons', 'flex')}>
+        <ParlonsView active={activeId === 'parlons'} />
       </div>
     </div>
   );
