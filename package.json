@@ -1,7 +1,7 @@
 {
   "name": "minimadesk",
   "productName": "minimaDesk",
-  "version": "0.7.14",
+  "version": "0.7.15",
   "description": "A polished desktop MiniDapp platform \u2014 runs a full Minima classic node and opens installed MDS MiniDapps as tabs. MiniHub, in a party dress.",
   "author": "eurobuddha",
   "license": "MIT",
@@ -14,7 +14,8 @@
     "dist:mac": "npm run build && electron-builder --mac --arm64",
     "dist:mac:signed": "APPLE_KEYCHAIN_PROFILE=minimadesk npm run dist:mac && scripts/notarize-dmg.sh && scripts/verify-mac.sh",
     "dist:win": "npm run build && electron-builder --win",
-    "dist:linux": "npm run build && electron-builder --linux"
+    "dist:linux": "npm run build && electron-builder --linux",
+    "fetch:parlons": "bash scripts/fetch-parlons-node-jar.sh"
   },
   "devDependencies": {
     "@react-spring/web": "^9.7.3",
@@ -54,6 +55,10 @@
       {
         "from": "resources/minima.jar",
         "to": "minima.jar"
+      },
+      {
+        "from": "resources/parlons-node.jar",
+        "to": "parlons-node.jar"
       },
       {
         "from": "resources/jre",
@@ -114,5 +119,6 @@
   },
   "dependencies": {
     "@silentbot1/nat-api": "^0.4.9"
-  }
+  },
+  "parlonsNode": "0.2.60"
 }

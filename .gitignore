@@ -1,6 +1,7 @@
 node_modules/
 dist/
 resources/minima.jar
+resources/parlons-node.jar
 resources/jre/
 *.log
 .DS_Store

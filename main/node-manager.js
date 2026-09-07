@@ -1,5 +1,6 @@
 /*
- * node-manager.js — owns the java child process running the FULL minima classic jar.
+ * node-manager.js — owns the java child process running the node: the Parlons Node (parlons-node.jar,
+ * nodeKind "parlons") or the FULL minima classic jar (nodeKind "minima").
  *
  * Adapted from minimacore-desktop's proven node-manager: resolve the JRE (bundled first, system fallback in
  * dev), build the arg list, spawn/stop/restart, keep a log ring buffer, health-poll the RPC. The key
@@ -30,6 +31,12 @@ const portmap = require("./portmap");
 const { DEFAULT_RELAY, isHostPort, isMlsIdentity } = require("./relays");
 
 const LOG_MAX_LINES = 800;
+// Minima flags the Parlons Node refuses at boot (MinimaFlags.EXCLUDED in the maxima repo): never passed.
+// The stock RPC ones are replaced by the node's loopback admin RPC (-Dparlons.node.rpc=true), which rpc.js
+// reaches unchanged on basePort+4 (the admin RPC ignores the Basic auth header; it is loopback-only).
+const PARLONS_REFUSED = new Set(["rpc", "rpcenable", "rpcpassword", "rpccrlf", "seed", "anyseed", "dbpassword",
+  "clean", "genesis", "test", "solo", "testchainlength", "daemon", "noshutdownhook", "jnlp", "help"]);
+const PARLONS_DEFAULT_ROOTNODE = "31.125.188.214:9001";   // the fork ships an empty node list: give it one peer
 const HEALTH_EVERY_MS = 8_000;
 const NET_RESTART_COOLDOWN_MS = 10 * 60_000;
 const MAXIMA_REFRESH_MS = 15 * 60 * 1000;           // periodic MLS refresh so cached contact addresses don't go stale
@@ -124,6 +131,9 @@ class NodeManager extends EventEmitter {
     this.provisionTries = 0;
     this.wasMapped = false;
     this.lastNetRestart = 0;
+    // Parlons Node: the account's readiness comes from the jar's own log lines, not from `status` (the chain
+    // answers well before the account has attached to the relays).
+    this.parlons = { ready: false, error: "", version: "", cape: false };
     this.selfRestarts = [];      // timestamps of automatic restarts after a clean self-shutdown
     portmap.setLogger(line => this.log(line));
     portmap.on("status", st => {
@@ -148,10 +158,33 @@ class NodeManager extends EventEmitter {
   /** A node we own or adopted, and not on its way down. */
   alive() { return (!!this.proc || this.adopted) && this.state !== "stopping" && this.state !== "stopped"; }
 
+  /** "parlons" (parlons-node.jar) or "minima" (the classic jar) - see config.nodeKind. */
+  kind() { return config.nodeKind(); }
   jarPath() {
+    return this.kind() === "parlons" ? this.parlonsJarPath() : this.classicJarPath();
+  }
+  classicJarPath() {
     return app.isPackaged
       ? path.join(process.resourcesPath, "minima.jar")
       : path.join(__dirname, "..", "resources", "minima.jar");
+  }
+  parlonsJarPath() {
+    return app.isPackaged
+      ? path.join(process.resourcesPath, "parlons-node.jar")
+      : path.join(__dirname, "..", "resources", "parlons-node.jar");
+  }
+  /** The node's data folder (the Parlons account keeps account.txt, invite.txt, panel-ticket.txt beside it). */
+  dataDir() { const cfg = config.load(); return cfg.dataFolder || config.defaultDataFolder(); }
+  /** The account's loopback web panel port (Parlons kind). */
+  panelPort() { return config.panelPort(); }
+  /** The Maxima relay (cape) port when contributing: the P2P port itself (one public port). */
+  capePort() { return config.basePort(); }
+  /** Why the Parlons Node cannot run with the current settings ("" = it can). Checked before a switch. */
+  parlonsBlocker() {
+    const cfg = config.load();
+    if (cfg.params && cfg.params.dbpassword === true) return "The Parlons Node cannot take -dbpassword (a wallet DB password): keep the classic node, or set up again without one.";
+    if (!fs.existsSync(this.parlonsJarPath())) return "parlons-node.jar is not bundled in this build.";
+    return "";
   }
   javaPath() {
     const exe = process.platform === "win32" ? "java.exe" : "java";
@@ -164,11 +197,17 @@ class NodeManager extends EventEmitter {
   confPath() { return path.join(app.getPath("userData"), "node.conf"); }
 
   /** The secrets go in a 0600 conf file (key=value lines, same names as the -flags), never on argv:
-   *  the RPC + MDS passwords, plus any secret-type startup param (dbpassword, mysqldb). */
-  writeConfFile(confParams) {
+   *  the RPC + MDS passwords, plus any secret-type startup param (dbpassword, mysqldb). The Parlons Node
+   *  reads the same file through -Dparlons.node.conf, but refuses rpcpassword (its admin RPC has no
+   *  password: loopback-only by construction) and dbpassword, so those never go in its file. */
+  writeConfFile(confParams, kind = this.kind()) {
     const file = this.confPath();
-    let text = "rpcpassword=" + config.rpcSecret() + "\n" + "mdspassword=" + config.mdsPassword() + "\n";
-    for (const [k, v] of Object.entries(confParams || {})) text += k + "=" + v + "\n";
+    let text = kind === "parlons" ? "" : "rpcpassword=" + config.rpcSecret() + "\n";
+    text += "mdspassword=" + config.mdsPassword() + "\n";
+    for (const [k, v] of Object.entries(confParams || {})) {
+      if (kind === "parlons" && PARLONS_REFUSED.has(String(k).toLowerCase())) continue;
+      text += k + "=" + v + "\n";
+    }
     config.writeAtomic(file, text, 0o600);
     return file;
   }
@@ -182,6 +221,7 @@ class NodeManager extends EventEmitter {
     const basePort = parseInt(cfg.basePort, 10) || 20001;
     const { argv: paramArgs, conf: confParams } = config.effectiveParams(cfg);
     if (!dryRun) fs.mkdirSync(dataDir, { recursive: true });
+    if ((cfg.nodeKind === "minima" ? "minima" : "parlons") === "parlons") return this.buildParlonsArgs(cfg, dataDir, basePort, paramArgs, confParams, dryRun);
     // Cap the JVM heap — a fresh node running the default MDS services can otherwise
     // balloon RAM and jank the whole machine (JVM flags must precede -jar).
     const args = ["-Xmx1500m", "-Xms256m", "-jar", this.jarPath(),
@@ -203,6 +243,50 @@ class NodeManager extends EventEmitter {
     return dryRun ? { args, confFlags: Object.keys(confParams) } : args;
   }
 
+  /**
+   * The Parlons Node takes NO command-line flags: every knob is a -D property before -jar, and Minima's
+   * own flags travel inside ONE quoted -Dparlons.node.args string (the jar's tokeniser honours quotes).
+   * Same data folder layout as minima.jar (<data>/1.1/…), so switching kinds keeps the wallet. MDS is
+   * served by the node itself (-Dparlons.mds=true, loopback-bound) on base+2 with the SAME password file
+   * the classic jar reads (-Dparlons.node.conf), so the hub, the dapp tabs and the cert trust are unchanged.
+   */
+  buildParlonsArgs(cfg, dataDir, basePort, paramArgs, confParams, dryRun) {
+    const params = Object.fromEntries(paramArgs);
+    const megammr = params.megammr === true;
+    const heap = parseInt(cfg.heapMb, 10) > 0 ? parseInt(cfg.heapMb, 10) : (megammr ? 3072 : 1536);
+    const q = (v) => '"' + String(v).replace(/(["\\])/g, "\\$1") + '"';
+    const flags = ["-basefolder", q(dataDir)];
+    for (const [flag, v] of paramArgs) {
+      if (PARLONS_REFUSED.has(flag) || flag === "megammr") continue;   // megammr goes through its own -D below
+      if (v === true) flags.push("-" + flag); else flags.push("-" + flag, q(v));
+    }
+    for (const tok of tokenizeArgs(cfg.extraArgs)) {
+      const key = tok.replace(/^-+/, "").toLowerCase();
+      if (tok.startsWith("-") && PARLONS_REFUSED.has(key)) continue;
+      flags.push(/\s/.test(tok) ? q(tok) : tok);
+    }
+    const confFlags = Object.keys(confParams || {}).filter((k) => !PARLONS_REFUSED.has(String(k).toLowerCase()));
+    const args = [
+      "-Xmx" + heap + "m",
+      "-Dparlons.node.data=" + dataDir,
+      "-Dparlons.node.port=" + basePort,
+      "-Dparlons.node.rpc=true",
+      "-Dparlons.node.megammr=" + megammr,
+      // One public port: when contributing, the Maxima relay rides the Minima P2P port (the fork hands
+      // Parlons clients over by their greeting), so the mapping the app already holds is the only one.
+      "-Dparlons.relay.port=" + (cfg.contribute ? "shared" : "0"),
+      "-Dparlons.panel.port=" + (basePort + 586),
+      "-Dparlons.gateway.port=" + (basePort + 584),
+      // MDS - the MiniDapp System, served by the Parlons Node (fork re-import, node 0.2.59): loopback only.
+      "-Dparlons.mds=true",
+      "-Dparlons.mds.bind=127.0.0.1",
+      "-Dparlons.node.conf=" + (dryRun ? this.confPath() : this.writeConfFile(confParams, "parlons"))
+    ];
+    if (!params.p2prootnode && !params.connect) args.push("-Dparlons.node.rootnode=" + PARLONS_DEFAULT_ROOTNODE);
+    args.push("-Dparlons.node.args=" + flags.join(" "), "-jar", this.parlonsJarPath());
+    return dryRun ? { args, confFlags } : args;
+  }
+
   start() {
     if (this.startPromise) return this.startPromise;
     if (this.proc || this.adopted) return Promise.resolve();
@@ -215,6 +299,7 @@ class NodeManager extends EventEmitter {
   async _start() {
     this.lastError = null;
     this.fatalHint = "";
+    this.parlons = { ready: false, error: "", version: "", cape: false };
     this.setState("starting");
     // Adopt an already-running node before spawning. A previous minimaDesk instance
     // that didn't fully exit still holds 20001/03/05 with OUR secret; spawning a second
@@ -222,6 +307,10 @@ class NodeManager extends EventEmitter {
     // if a node answers our RPC, adopt it: no duplicate, no port race, RPC works immediately.
     try {
       const s = await rpcCall(config.rpcPort(), config.rpcSecret(), "status");
+      if (s && s.status && this.runningKindMismatch()) {
+        this.log("[app] a node of the other kind answers on rpc " + config.rpcPort() + " - stopping it, not adopting it");
+        throw new Error("kind mismatch");
+      }
       if (s && s.status) {
         this.log("[app] adopting already-running node on rpc " + config.rpcPort());
         this.adopted = true; this.startedTs = Date.now();
@@ -325,6 +414,19 @@ class NodeManager extends EventEmitter {
 
   pidfilePath() { return path.join(app.getPath("userData"), "node.pid"); }
 
+  /** Does the node LISTENING on our port run the OTHER jar than the configured kind? (Adoption must not
+   *  keep a classic node alive after the user switched to the Parlons Node, or the reverse.) */
+  runningKindMismatch() {
+    const want = this.kind();
+    for (const pid of listeners(config.basePort())) {
+      const cmd = commandOf(pid);
+      if (!cmd) continue;
+      if (want === "parlons" && /minima\.jar/.test(cmd) && !/parlons-node\.jar/.test(cmd)) return true;
+      if (want === "minima" && /parlons-node\.jar/.test(cmd)) return true;
+    }
+    return false;
+  }
+
   /** "" = go ahead; else the reason not to spawn (a foreign owner of our port, or a node we could not stop). */
   async reclaimStaleNode() {
     const cfg = config.load();
@@ -337,7 +439,8 @@ class NodeManager extends EventEmitter {
     } catch (e) { /* no pidfile */ }
     for (const pid of listeners(port)) if (!candidates.has(pid)) candidates.set(pid, commandOf(pid));
     candidates.delete(process.pid);
-    const isOurs = (cmd) => /minima\.jar/.test(cmd) && (cmd.includes(dataDir) || cmd.includes("-port " + port));
+    const isOurs = (cmd) => /(minima|parlons-node)\.jar/.test(cmd)
+      && (cmd.includes(dataDir) || cmd.includes("-port " + port) || cmd.includes("-Dparlons.node.port=" + port));
     for (const [pid, cmd] of candidates) {
       if (!isOurs(cmd)) {
         this.portOwner = { pid, command: cmd || "(unknown)" };
@@ -429,7 +532,9 @@ class NodeManager extends EventEmitter {
         if (!live()) return;
         const r = (j && j.response) || {};
         let maxima = false;
-        try { const mx = await rpcCall(config.rpcPort(), config.rpcSecret(), "maxima action:info"); maxima = !!(mx && mx.status); } catch (e) {}
+        if (this.kind() !== "parlons") {   // the Parlons Node has no classic Maxima: the account manages its own relays
+          try { const mx = await rpcCall(config.rpcPort(), config.rpcSecret(), "maxima action:info"); maxima = !!(mx && mx.status); } catch (e) {}
+        }
         if (!live()) return;
         this.healthFailures = 0;
         const prev = this.health || {};
@@ -533,6 +638,7 @@ class NodeManager extends EventEmitter {
   /** Reconnect the relay, apply the static-MLS policy, force-refresh every contact's live address.
    *  Serialised: the periodic timer, the UI button, setMaximaRelay and setMls may all ask at once. */
   healMaxima() {
+    if (this.kind() === "parlons") return Promise.resolve({ status: false, error: "the Parlons Node has no classic Maxima - your Parlons account manages its own relays (see the Parlons tab)" });
     const run = this.healChain.then(() => this._heal(), () => this._heal());
     this.healChain = run.catch(() => {});
     return run;
@@ -593,7 +699,10 @@ class NodeManager extends EventEmitter {
   setState(s) { this.state = s; this.emit("status", this.snapshot()); }
   snapshot() {
     const cfg = config.load();
+    const kind = cfg.nodeKind === "minima" ? "minima" : "parlons";
     return { state: this.state, health: this.health, lastError: this.lastError, portOwner: this.portOwner || null,
+             kind, jar: this.jarPath(), heapMb: parseInt(cfg.heapMb, 10) || 0,
+             parlons: Object.assign({ panelPort: config.panelPort(), capePort: config.basePort() }, this.parlons),
              provision: { done: this.provisionDone, busy: this.provisionBusy },
              contribute: !!cfg.contribute, portmap: portmap.status(),
              maximaRelay: currentRelay(), mls: cfg.mls || { mode: "relay", custom: "" },
@@ -605,6 +714,19 @@ class NodeManager extends EventEmitter {
     const lines = this.logs.slice(-n);
     return { seq: this.logSeq, lines };
   }
+  /** The Parlons Node narrates its account in its log; that is the honest readiness signal. */
+  watchParlonsLine(l) {
+    if (!l.startsWith("[parlons-node]")) return;
+    let changed = false;
+    const m = l.match(/Parlons Node (\d+\.\d+\.\d+)/);
+    if (m && !this.parlons.version) { this.parlons.version = m[1]; changed = true; }
+    if (l.includes("account up:")) { this.parlons.ready = true; this.parlons.error = ""; changed = true; }
+    if (l.includes("Maxima cape up on port")) { this.parlons.cape = true; changed = true; }
+    if (l.includes("account layer FAILED") || l.includes("Maxima cape FAILED") || l.includes("REFUSING to start") || l.includes("REFUSING to run")) {
+      this.parlons.error = l.replace(/^\[parlons-node\]\s*/, "").slice(0, 300); changed = true;
+    }
+    if (changed) this.emit("status", this.snapshot());
+  }
   log(line) {
     if (/Database may be already in use|locked by another process|Address already in use|BindException/i.test(String(line))) {
       this.fatalHint = /Address already in use|BindException/i.test(String(line))
@@ -613,6 +735,7 @@ class NodeManager extends EventEmitter {
     }
     for (let l of String(line).split("\n")) {
       if (!l.trim()) continue;
+      try { this.watchParlonsLine(l); } catch (e) {}
       l = l.replace(/phrase:"[^"]*"/g, 'phrase:"•••"').replace(/privatekey:0x[0-9A-Fa-f]+/g, "privatekey:•••");
       this.logs.push(l.length > 400 ? l.slice(0, 400) + "…" : l);
       this.logSeq++;

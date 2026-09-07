@@ -6,7 +6,10 @@
  * fallback, and are only ever read by the MAIN process. The renderer never sees them; it talks to the node
  * through the IPC proxy in main.js.
  *
- * We run the FULL minima classic jar with MDS ENABLED (unlike the old minimaCore desktop, which stripped it).
+ * Two node kinds (since 0.7.15): "parlons" runs parlons-node.jar - the Parlons Node: the same full node with
+ * MDS served by the node itself (fork re-import), plus your Parlons account and a Maxima relay when you
+ * contribute; "minima" runs the classic minima.jar (MDS + classic Maxima). A fresh install starts on the
+ * Parlons Node; an install from before 0.7.15 keeps the classic jar until Settings → minimaDesk switches it.
  */
 const { app, safeStorage } = require("electron");
 const crypto = require("crypto");
@@ -18,6 +21,9 @@ const DEFAULTS = {
   // A dedicated base port so minimaDesk coexists with any other Minima node the user runs (9001 classic,
   // 11001 android, 12001 old desktop, 16001 classic-desktop). MDS = base+2, RPC = base+4.
   basePort: 20001,
+  nodeKind: "parlons",  // "parlons" = parlons-node.jar (node + MDS + your Parlons account); "minima" = classic minima.jar
+  heapMb: 0,             // -Xmx for the Parlons Node (0 = automatic: 3072 with MegaMMR, else 1536)
+  updateFeed: "",        // the one-app store feed minimaDesk checks for its own updates ("" = the eurobuddha.com feed)
   dataFolder: "",        // -data (empty → default under userData/minima-data)
   extraArgs: "",         // additional raw jar args, appended verbatim (validated against params.ALL_FLAGS)
   params: {},            // every other minima.jar startup flag (Settings → Startup parameters); secrets hold a `true` marker
@@ -51,6 +57,10 @@ function load() {
   let j = {};
   try { j = JSON.parse(fs.readFileSync(configPath(), "utf8")); } catch (e) { /* first run */ }
   const merged = Object.assign({}, DEFAULTS, j);
+  // An install from before the Parlons Node existed (a config.json with no nodeKind) keeps its classic jar
+  // until the user switches in Settings; a fresh install starts on the Parlons Node.
+  if (!("nodeKind" in j) && Object.keys(j).length) merged.nodeKind = "minima";
+  if (merged.nodeKind !== "minima") merged.nodeKind = "parlons";
   // params: ONLY flags in the current manifest — a saved value wins, otherwise the default. A stale config
   // can never resurrect a flag the bundled jar no longer knows (the jar refuses to boot on an unknown flag).
   const defs = PARAMS.defaultParams(), sp = (j && j.params && typeof j.params === "object") ? j.params : {}, params = {};
@@ -73,6 +83,12 @@ function save(patch) {
 
 // ---- derived ports ----
 function basePort() { return parseInt(load().basePort, 10) || DEFAULTS.basePort; }
+/** "parlons" or "minima" (see DEFAULTS.nodeKind). */
+function nodeKind() { return load().nodeKind === "minima" ? "minima" : "parlons"; }
+/** The Parlons account's loopback web panel (Parlons kind only). */
+function panelPort() { return basePort() + 586; }
+/** The Parlons Node's loopback wallet gateway (Parlons kind only). */
+function gatewayPort() { return basePort() + 584; }
 function rpcPort() { return basePort() + 4; }
 function mdsPort() { return basePort() + 2; }
 
@@ -132,7 +148,7 @@ function effectiveParams(cfg) {
 
 module.exports = {
   load, save, writeAtomic, defaultDataFolder,
-  basePort, rpcPort, mdsPort,
+  basePort, rpcPort, mdsPort, nodeKind, panelPort, gatewayPort,
   rpcSecret, mdsPassword,
   effectiveParams, paramSecretGet, paramSecretSet, paramSecretDelete
 };

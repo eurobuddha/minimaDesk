@@ -20,6 +20,7 @@ const { rpcCall } = require("./rpc");
 const iconcache = require("./iconcache");
 const startup = require("./startup");
 const { KNOWN_RELAYS } = require("./relays");
+const parlons = require("./parlons");   // the Parlons account the Parlons Node hosts (nodeKind "parlons")
 
 // Dev only: run from an isolated userData (own secrets, own single-instance lock, own config/port) so a
 // dev build can run next to the installed app. Set MDESK_USERDATA=<dir> (seed <dir>/config.json first).
@@ -134,12 +135,22 @@ function createWindow() {
 node.on("status", s => send("node:status", s));
 
 // Every <webview> guest: dapp-to-dapp window.open becomes a tab; capture console in dev. Also refuse any
-// attempt (from a compromised renderer) to attach a webview with a preload or node integration.
+// attempt (from a compromised renderer) to attach a webview with a preload or node integration, and any
+// src that is not one of the two loopback origins a tab may show: a MiniDapp on the node's MDS port, or
+// the Parlons account's own web panel (Parlons kind).
+function isAllowedWebviewSrc(src) {
+  const s = String(src || "");
+  if (!s) return true;                       // DappWebview sets src once it knows the port; an empty guest is inert
+  if (s.startsWith("https://127.0.0.1:" + config.mdsPort() + "/") || s.startsWith("https://localhost:" + config.mdsPort() + "/")) return true;
+  if (config.nodeKind() === "parlons" && s.startsWith("http://127.0.0.1:" + config.panelPort() + "/")) return true;
+  return false;
+}
 app.on("web-contents-created", (_e, contents) => {
   try {
-    contents.on("will-attach-webview", (_ev, prefs) => {
+    contents.on("will-attach-webview", (ev, prefs, params) => {
       delete prefs.preload; delete prefs.preloadURL;
       prefs.nodeIntegration = false; prefs.contextIsolation = true; prefs.webSecurity = true;
+      if (!isAllowedWebviewSrc(params && params.src)) { console.log("[app] refused a webview for", String(params && params.src).slice(0, 120)); ev.preventDefault(); }
     });
     if (contents.getType && contents.getType() === "webview") {
       contents.setWindowOpenHandler(windowOpenHandler);
@@ -185,7 +196,24 @@ if (!gotLock) {
 ipcMain.on("diag", (_e, m) => { if (!app.isPackaged) console.log("[R]", m); });
 ipcMain.handle("node:snapshot", () => node.snapshot());
 ipcMain.handle("node:logs", () => node.logTail(300));
-ipcMain.handle("node:ports", () => ({ base: config.basePort(), rpc: config.rpcPort(), mds: config.mdsPort(), appVersion: app.getVersion() }));
+ipcMain.handle("node:ports", () => ({ base: config.basePort(), rpc: config.rpcPort(), mds: config.mdsPort(), panel: config.panelPort(), kind: config.nodeKind(), appVersion: app.getVersion() }));
+
+// ---- the Parlons Node kind: the account's status for the Parlons tab, its one-time panel link, the switch ----
+ipcMain.handle("parlons:status", () => parlons.status());
+ipcMain.handle("parlons:panelUrl", () => parlons.ticketUrl());
+ipcMain.handle("parlons:openExternal", () => parlons.openExternal());
+/** Switch the node kind (and the Parlons heap), then restart the node. Same data folder, same wallet. */
+ipcMain.handle("node:setKind", async (_e, kind, heapMb) => {
+  try {
+    const k = kind === "minima" ? "minima" : "parlons";
+    if (k === "parlons") { const why = node.parlonsBlocker(); if (why) return { status: false, error: why }; }
+    const heap = Math.max(0, parseInt(heapMb, 10) || 0);
+    const before = config.load();
+    config.save({ nodeKind: k, heapMb: heap });
+    if (before.nodeKind !== k || (parseInt(before.heapMb, 10) || 0) !== heap) node.restart().catch(() => {});
+    return { status: true, kind: k, heapMb: heap };
+  } catch (e) { return { status: false, error: e.message }; }
+});
 ipcMain.handle("node:stop", async (_e, compact) => { try { await node.stop({ compact: !!compact }); return { status: true }; } catch (e) { return { status: false, error: e.message }; } });
 ipcMain.handle("node:restart", async () => { try { await node.restart(); return { status: true }; } catch (e) { return { status: false, error: e.message }; } });
 

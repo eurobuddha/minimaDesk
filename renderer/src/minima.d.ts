@@ -10,10 +10,21 @@ export type PortmapStatus = {
 };
 export type MlsPolicy = { mode: 'relay' | 'custom' | 'host'; custom: string };
 export type KnownRelay = { host: string; label: string };
+export type NodeKind = 'parlons' | 'minima';
+/** The Parlons account the Parlons Node hosts (kind 'parlons'); readiness comes from the jar's own log lines. */
+export type ParlonsState = { panelPort: number; capePort: number; ready: boolean; error: string; version: string; cape: boolean };
+export type ParlonsStatus = {
+  kind: NodeKind; ready: boolean; error: string; version: string; cape: boolean; panelPort: number; capePort: number;
+  address: string; anchor: string; invite: string; hasTicket: boolean; blocker: string;
+};
 export type NodeSnapshot = {
   state: 'stopped' | 'starting' | 'running' | 'stopping' | 'error';
   health: NodeHealth | null;
   lastError: string | null;
+  kind: NodeKind;
+  jar: string;
+  heapMb: number;
+  parlons: ParlonsState;
   rpcPort: number;
   mdsPort: number;
   basePort: number;
@@ -38,7 +49,7 @@ export type StartupConfig = {
 };
 /** secret params: true = keep stored, false/'' = clear, any other string = new value */
 export type StartupPatch = { basePort: number | string; dataFolder: string; params: ParamValues; extraArgs: string };
-export type Ports = { base: number; rpc: number; mds: number; appVersion: string };
+export type Ports = { base: number; rpc: number; mds: number; panel: number; kind: NodeKind; appVersion: string };
 export type RpcReply = { command?: string; status: boolean; pending?: boolean; response?: any; error?: string; cancelled?: boolean };
 
 export interface MinimaBridge {
@@ -54,6 +65,10 @@ export interface MinimaBridge {
   install(): Promise<RpcReply>;
   iconData(url: string): Promise<string>;
   healMaxima(): Promise<{ status: boolean; error?: string }>;
+  parlonsStatus(): Promise<ParlonsStatus>;
+  parlonsPanelUrl(): Promise<string>;
+  parlonsOpenExternal(): Promise<boolean>;
+  setNodeKind(kind: NodeKind, heapMb?: number): Promise<{ status: boolean; kind?: NodeKind; heapMb?: number; error?: string }>;
   rpcCopyPassword(): Promise<{ status: boolean; user?: string; port?: number; error?: string }>;
   paramsGet(): Promise<StartupConfig>;
   paramsPreview(patch: StartupPatch): Promise<{ status: boolean; errors: string[]; preview?: StartupPreview }>;

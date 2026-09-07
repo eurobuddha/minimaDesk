@@ -48,8 +48,8 @@ jobs:
         with:
           node-version: 20
 
-      # minima.jar is Java 8 bytecode, so any modern JRE runs it. Temurin 21 LTS is
-      # available on all three runners; we jlink a minimal JRE from it.
+      # minima.jar is Java 8 bytecode and parlons-node.jar is Java 11, so any modern JRE runs them.
+      # Temurin 21 LTS is available on all three runners; we jlink a minimal JRE from it.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -59,7 +59,7 @@ jobs:
         shell: bash
         run: |
           jlink \
-            --add-modules java.se,jdk.unsupported \
+            --add-modules java.se,jdk.unsupported,jdk.httpserver \
             --strip-debug --no-header-files --no-man-pages --compress=2 \
             --output resources/jre
           ls resources/jre/bin
@@ -67,6 +67,15 @@ jobs:
       - name: Fetch the full classic minima.jar (MDS + Maxima)
         shell: bash
         run: ./scripts/fetch-jar.sh
+
+      # The Parlons Node jar is never in git: the node-v* release of eurobuddha/maxima pinned in package.json
+      # ("parlonsNode"), checksum-verified. Its admin RPC / panel / gateway are com.sun.net.httpserver, hence
+      # jdk.httpserver in the jlink above.
+      - name: Fetch parlons-node.jar
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/fetch-parlons-node-jar.sh
 
       - name: Install deps
         run: npm ci

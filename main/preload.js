@@ -35,8 +35,14 @@ contextBridge.exposeInMainWorld("minima", {
   // fetch an MDS icon as a data URL (reliable — bypasses self-signed cert img loads)
   iconData: (url) => invoke("mds:icon", url),
 
-  // on-demand Maxima heal (reconnect relay + re-pin MLS + refresh contacts)
+  // on-demand Maxima heal (reconnect relay + re-pin MLS + refresh contacts) - classic kind only
   healMaxima: () => invoke("maxima:heal"),
+
+  // the Parlons Node kind: account status, the one-time panel link for the Parlons tab, open in browser, switch kinds
+  parlonsStatus: () => invoke("parlons:status"),
+  parlonsPanelUrl: () => invoke("parlons:panelUrl"),
+  parlonsOpenExternal: () => invoke("parlons:openExternal"),
+  setNodeKind: (kind, heapMb) => invoke("node:setKind", kind, heapMb),
 
   // Settings → minimaDesk: copy the RPC password to the clipboard (never returned to the renderer)
   rpcCopyPassword: () => invoke("rpc:copyPassword"),
