@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import SlideScreen from '../../../../components/UI/SlideScreen';
 import Button from '../../../../components/UI/Button';
 import BackButton from '../_BackButton';
-import type { NodeSnapshot, Ports } from '../../../../../minima';
+import type { NodeSnapshot, Ports, UpdateStatus } from '../../../../../minima';
 
 type Props = { display: boolean; dismiss: () => void };
 
@@ -24,17 +24,39 @@ export function MinimaDesk({ display, dismiss }: Props) {
   const [kindMsg, setKindMsg] = useState('');
   const [kindBusy, setKindBusy] = useState(false);
   const [blocker, setBlocker] = useState('');
+  const [upd, setUpd] = useState<UpdateStatus | null>(null);
+  const [updBusy, setUpdBusy] = useState('');
+  const [updMsg, setUpdMsg] = useState('');
 
   useEffect(() => {
     if (!display || !minima) return;
     minima.ports().then(setPorts).catch(() => {});
     minima.snapshot().then((s: NodeSnapshot) => { setStatus(s); setKindPick((k) => k || s.kind); setHeap((h) => h || String(s.heapMb || 0)); }).catch(() => {});
     minima.parlonsStatus().then((p: any) => setBlocker((p && p.blocker) || '')).catch(() => {});
+    minima.updateStatus().then(setUpd).catch(() => {});
     const off = minima.onStatus(setStatus);
     return () => { off && off(); };
   }, [display]);
 
   const kind = status ? status.kind : 'parlons';
+  const checkUpdate = async () => {
+    setUpdBusy('check'); setUpdMsg('');
+    try { setUpd(await minima.updateCheck()); } catch (e: any) { setUpdMsg(e && e.message ? e.message : String(e)); }
+    finally { setUpdBusy(''); }
+  };
+  const downloadUpdate = async () => {
+    setUpdBusy('download'); setUpdMsg('Downloading — the file is verified against the feed before it is saved…');
+    try {
+      const r = await minima.updateDownload();
+      if (r && r.status) { setUpdMsg('Saved and verified: ' + r.path + ' — install it over this app, then relaunch.'); if (r.update) setUpd(r.update); }
+      else setUpdMsg('Download failed: ' + ((r && r.error) || 'unknown error'));
+    } catch (e: any) { setUpdMsg(e && e.message ? e.message : String(e)); }
+    finally { setUpdBusy(''); }
+  };
+  const updLine = !upd ? 'Checking…'
+    : upd.error ? `Could not check for updates (${upd.error}). Running ${upd.running}.`
+    : upd.available ? `minimaDesk ${upd.version} is available${upd.date ? ' (' + upd.date + ')' : ''} — you run ${upd.running}.${upd.notes ? ' ' + upd.notes : ''}`
+    : `You run ${upd.running}${upd.version ? ' — the newest published build is ' + upd.version : ''}.`;
   const applyKind = async () => {
     const want = kindPick || kind;
     const heapMb = Math.max(0, parseInt(heap, 10) || 0);
@@ -99,6 +121,17 @@ export function MinimaDesk({ display, dismiss }: Props) {
                   <Row k="Ports" v={ports ? `p2p ${ports.base} · mds ${ports.mds} · rpc ${ports.rpc}${kind === 'parlons' ? ` · panel ${ports.panel}` : ''}` : '—'} />
                   <Row k="minimaDesk version" v={ports ? ports.appVersion : '—'} />
                 </div>
+              </div>
+
+              <div className="bg-contrast1 p-4 rounded">
+                <div className="text-lg -mt-0.5 mb-2">Updates</div>
+                <div className="mb-3 text-core-grey-80">minimaDesk checks its own store feed for a newer build (at start and every 6 hours). A download is verified against the feed's sha256 and saved to your Downloads folder for you to install; nothing installs by itself.</div>
+                <div className="mb-3 text-sm break-words">{updLine}</div>
+                <div className="flex gap-3">
+                  <Button variant="secondary" onClick={checkUpdate} disabled={!!updBusy}>{updBusy === 'check' ? 'Checking…' : 'Check now'}</Button>
+                  {upd && upd.available && <Button onClick={downloadUpdate} disabled={!!updBusy}>{updBusy === 'download' ? 'Downloading…' : `Download ${upd.version}`}</Button>}
+                </div>
+                {updMsg && <div className="mt-3 text-sm text-core-grey-80 break-all">{updMsg}</div>}
               </div>
 
               <div className="bg-contrast1 p-4 rounded">

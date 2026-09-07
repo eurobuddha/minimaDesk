@@ -21,6 +21,7 @@ const iconcache = require("./iconcache");
 const startup = require("./startup");
 const { KNOWN_RELAYS } = require("./relays");
 const parlons = require("./parlons");   // the Parlons account the Parlons Node hosts (nodeKind "parlons")
+const updater = require("./updater");   // app updates from the minimaDesk store feed (the jars ship with the app)
 
 // Dev only: run from an isolated userData (own secrets, own single-instance lock, own config/port) so a
 // dev build can run next to the installed app. Set MDESK_USERDATA=<dir> (seed <dir>/config.json first).
@@ -188,6 +189,7 @@ if (!gotLock) {
     trustLoopbackMds();
     createWindow();
     node.start().catch(() => {});
+    updater.start();
     app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
   });
 }
@@ -197,6 +199,11 @@ ipcMain.on("diag", (_e, m) => { if (!app.isPackaged) console.log("[R]", m); });
 ipcMain.handle("node:snapshot", () => node.snapshot());
 ipcMain.handle("node:logs", () => node.logTail(300));
 ipcMain.handle("node:ports", () => ({ base: config.basePort(), rpc: config.rpcPort(), mds: config.mdsPort(), panel: config.panelPort(), kind: config.nodeKind(), appVersion: app.getVersion() }));
+
+// ---- app updates: the one-app store feed (main/updater.js). Verified download to ~/Downloads, never a silent install ----
+ipcMain.handle("update:status", () => updater.current());
+ipcMain.handle("update:check", async () => { await updater.check(); return updater.current(); });
+ipcMain.handle("update:download", async () => { try { const p = await updater.download(); return { status: true, path: p, update: updater.current() }; } catch (e) { return { status: false, error: e.message }; } });
 
 // ---- the Parlons Node kind: the account's status for the Parlons tab, its one-time panel link, the switch ----
 ipcMain.handle("parlons:status", () => parlons.status());

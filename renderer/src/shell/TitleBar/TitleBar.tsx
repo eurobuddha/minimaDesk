@@ -90,6 +90,21 @@ function NodeChip({ onClick, open }: { onClick: () => void; open: boolean }) {
   );
 }
 
+function UpdatePill() {
+  const { switchTab } = useShell();
+  const [ver, setVer] = useState('');
+  useEffect(() => {
+    let alive = true;
+    const pull = async () => { try { const u = await window.minima.updateStatus(); if (alive) setVer(u && u.available ? u.version : ''); } catch (e) {} };
+    pull();
+    const iv = setInterval(pull, 60_000);
+    return () => { alive = false; clearInterval(iv); };
+  }, []);
+  if (!ver) return null;
+  // Settings → minimaDesk (the hub's own router) holds the Updates card with the verified download.
+  return <button type="button" className="updpill nodrag" title={`minimaDesk ${ver} is available — open Settings → minimaDesk`} onClick={() => { switchTab('home'); location.hash = '#/settings'; }}>Update {ver}</button>;
+}
+
 export default function TitleBar() {
   const { tabs, activeId, dapps, ports, openView, openNamedDapp, installFromFile } = useShell();
   const parlonsKind = !!ports && ports.kind === 'parlons';
@@ -132,6 +147,7 @@ export default function TitleBar() {
       <button type="button" className={`tool ${isActive(term) ? 'active' : ''}`} title={TERMINAL_DAPP} aria-label={TERMINAL_DAPP} onClick={() => openNamedDapp(TERMINAL_DAPP)}><IconTerminal /></button>
       {parlonsKind && <button type="button" className={`tool ${activeId === 'parlons' ? 'active' : ''}`} title="Parlons - your account on this node" aria-label="Parlons" onClick={() => openView('parlons')}><IconParlons /></button>}
       <button type="button" className={`tool ${activeId === 'logs' ? 'active' : ''}`} title="Node logs" aria-label="Node logs" onClick={() => openView('logs')}><IconLogs /></button>
+      <UpdatePill />
       <NodeChip open={pop} onClick={() => setPop((v) => !v)} />
       {pop && <NodePopover onClose={() => setPop(false)} />}
     </div>

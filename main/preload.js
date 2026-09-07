@@ -44,6 +44,11 @@ contextBridge.exposeInMainWorld("minima", {
   parlonsOpenExternal: () => invoke("parlons:openExternal"),
   setNodeKind: (kind, heapMb) => invoke("node:setKind", kind, heapMb),
 
+  // app updates from the minimaDesk store feed (checked at boot and every 6 h; download verified against the feed's sha256)
+  updateStatus: () => invoke("update:status"),
+  updateCheck: () => invoke("update:check"),
+  updateDownload: () => invoke("update:download"),
+
   // Settings → minimaDesk: copy the RPC password to the clipboard (never returned to the renderer)
   rpcCopyPassword: () => invoke("rpc:copyPassword"),
 

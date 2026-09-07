@@ -49,6 +49,10 @@ export type StartupConfig = {
 };
 /** secret params: true = keep stored, false/'' = clear, any other string = new value */
 export type StartupPatch = { basePort: number | string; dataFolder: string; params: ParamValues; extraArgs: string };
+export type UpdateStatus = {
+  feed: string; platform: string; running: string; checkedAt: number; available: boolean; version: string; notes: string; date: string;
+  file: string; sha256: string; size: number; error: string; downloaded: string;
+};
 export type Ports = { base: number; rpc: number; mds: number; panel: number; kind: NodeKind; appVersion: string };
 export type RpcReply = { command?: string; status: boolean; pending?: boolean; response?: any; error?: string; cancelled?: boolean };
 
@@ -69,6 +73,9 @@ export interface MinimaBridge {
   parlonsPanelUrl(): Promise<string>;
   parlonsOpenExternal(): Promise<boolean>;
   setNodeKind(kind: NodeKind, heapMb?: number): Promise<{ status: boolean; kind?: NodeKind; heapMb?: number; error?: string }>;
+  updateStatus(): Promise<UpdateStatus>;
+  updateCheck(): Promise<UpdateStatus>;
+  updateDownload(): Promise<{ status: boolean; path?: string; update?: UpdateStatus; error?: string }>;
   rpcCopyPassword(): Promise<{ status: boolean; user?: string; port?: number; error?: string }>;
   paramsGet(): Promise<StartupConfig>;
   paramsPreview(patch: StartupPatch): Promise<{ status: boolean; errors: string[]; preview?: StartupPreview }>;
