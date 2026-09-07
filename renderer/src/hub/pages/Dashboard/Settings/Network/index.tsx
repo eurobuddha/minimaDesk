@@ -62,6 +62,7 @@ export function Network({ display, dismiss }: Props) {
   const [copied, setCopied] = useState(false);
 
   const refreshMaxima = async () => {
+    if (status && status.kind === 'parlons') return;   // the Parlons Node has no classic Maxima
     try {
       const i = await minima.cmd('maxima action:info');
       if (i && i.status) setInfo(i.response);
@@ -103,6 +104,7 @@ export function Network({ display, dismiss }: Props) {
     try { await navigator.clipboard.writeText(permanentAddress); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (e) {}
   };
 
+  const parlonsKind = !!status && status.kind === 'parlons';
   const port = (cfg && cfg.basePort) || (status && status.basePort) || 0;
   const contributing = !!(cfg ? cfg.contribute : status && status.contribute);
   const pm = status && status.portmap;
@@ -164,7 +166,7 @@ export function Network({ display, dismiss }: Props) {
             <BackButton dismiss={dismiss} />
             <div className="mt-6 text-2xl mb-8">Network</div>
             <div className="flex flex-col gap-5">
-              <p className="text-core-grey-20">Become a reachable full node, and choose how Maxima finds you.</p>
+              <p className="text-core-grey-20">{parlonsKind ? 'Become a reachable full node — and, as the Parlons Node, a Maxima relay for other people.' : 'Become a reachable full node, and choose how Maxima finds you.'}</p>
 
               {/* ---- Contribute to the network ---- */}
               <div className="bg-contrast1 p-4 rounded">
@@ -172,9 +174,11 @@ export function Network({ display, dismiss }: Props) {
                   <div className="grow">
                     <div className="text-lg -mt-0.5 mb-1">Contribute to the network</div>
                     <div className="text-core-grey-80 text-sm">
-                      Your node also accepts connections and helps other nodes sync, and acts as a Maxima host for others.
+                      {parlonsKind
+                        ? <>Your node also accepts connections and helps other nodes sync, and its Maxima relay rides the same port (one public port), so Parlons users can attach to you. Asks your router to open your Minima port (UPnP/NAT-PMP). Many home routers refuse or silently ignore the request, so this isn't guaranteed; you can always forward the port yourself — the Parlons tab's Node page shows exactly what to forward.</>
+                        : <>Your node also accepts connections and helps other nodes sync, and acts as a Maxima host for others.
                       Asks your router to open your Minima port (UPnP/NAT-PMP). Many home routers refuse or silently
-                      ignore the request, so this isn't guaranteed; you can always forward the port yourself.
+                      ignore the request, so this isn't guaranteed; you can always forward the port yourself.</>}
                     </div>
                   </div>
                   <div className="pt-1"><Toggle checkedStatus={contributing} onChange={toggleContribute} /></div>
@@ -209,6 +213,15 @@ export function Network({ display, dismiss }: Props) {
                 )}
               </div>
 
+              {parlonsKind && (
+                <div className="bg-contrast1 p-4 rounded mb-5">
+                  <div className="text-lg -mt-0.5 mb-1">Your Parlons account</div>
+                  <div className="text-core-grey-80 text-sm">
+                    On the Parlons Node, Maxima is your Parlons account: it attaches to the relay fleet by itself, owns your permanent MAX# address, and pairs your phones and computers. Open the <span className="text-white">Parlons</span> tab — its Node page has the port-forwarding facts (LAN address, router link, public address, whether the port is reached) and its Devices page the pairing code.
+                  </div>
+                </div>
+              )}
+              {!parlonsKind && <>
               {/* ---- Permanent address (Parlons method: anchored to the attached relay) ---- */}
               <div className="bg-contrast1 p-4 rounded">
                 <div className="text-lg -mt-0.5 mb-1">Permanent address · MAX#</div>
@@ -297,6 +310,7 @@ export function Network({ display, dismiss }: Props) {
                   {msg && <div className="text-sm text-core-grey-20">{msg}</div>}
                 </div>
               </div>
+              </>}
             </div>
           </div>
         </div>
