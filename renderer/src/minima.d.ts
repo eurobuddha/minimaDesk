@@ -24,6 +24,7 @@ export type NodeSnapshot = {
   kind: NodeKind;
   jar: string;
   adopted?: boolean;
+  startedTs?: number;
   heapMb: number;
   parlons: ParlonsState;
   rpcPort: number;

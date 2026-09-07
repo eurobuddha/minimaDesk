@@ -155,6 +155,13 @@ app.on("web-contents-created", (_e, contents) => {
     });
     if (contents.getType && contents.getType() === "webview") {
       contents.setWindowOpenHandler(windowOpenHandler);
+      // A guest may navigate within its own loopback origin only. Anything else it tries to load in-tab
+      // (a dapp doing location.href = https://…) goes to the OS browser instead, like window.open does.
+      contents.on("will-navigate", (ev, url) => {
+        if (isAllowedWebviewSrc(url)) return;
+        ev.preventDefault();
+        if (/^https?:\/\//i.test(String(url))) shell.openExternal(String(url)).catch(() => {});
+      });
       if (!app.isPackaged) {
         contents.on("console-message", (ev, level, message) => console.log("[wv]", (ev && ev.message) || message || ""));
       }

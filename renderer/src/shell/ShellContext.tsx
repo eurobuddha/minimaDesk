@@ -194,6 +194,7 @@ export const ShellProvider: React.FC<React.PropsWithChildren<{ initialPorts: Por
 
   // ---- maxima ----
   const refreshMaxima = useCallback(async () => {
+    if (statusRef.current && statusRef.current.kind === 'parlons') return;   // the Parlons Node has no classic Maxima
     try {
       const r: RpcReply = await minima.cmd('maxima action:info');
       const addr = (r && r.status && r.response && (r.response.contact || r.response.maximaaddress)) || '';

@@ -107,7 +107,8 @@ function UpdatePill() {
 
 export default function TitleBar() {
   const { tabs, activeId, dapps, ports, openView, openNamedDapp, installFromFile } = useShell();
-  const parlonsKind = !!ports && ports.kind === 'parlons';
+  const status = useShellStatus();
+  const parlonsKind = status ? status.kind === 'parlons' : !!ports && ports.kind === 'parlons';   // live: a kind switch needs no relaunch
   const [pop, setPop] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
   const isMac = window.minima && window.minima.platform === 'darwin';

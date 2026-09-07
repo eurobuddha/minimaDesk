@@ -20,7 +20,7 @@ export default function ParlonsView({ active }: { active: boolean }) {
   const [switching, setSwitching] = useState('');
   const [msg, setMsg] = useState('');
   const ref = useRef<WebviewTag | null>(null);
-  const kind = (ports && ports.kind) || (status && status.kind) || 'parlons';
+  const kind = (status && status.kind) || (ports && ports.kind) || 'parlons';
 
   // Poll the account's status while the tab is shown (its readiness comes from the jar's own log lines).
   useEffect(() => {
@@ -32,8 +32,8 @@ export default function ParlonsView({ active }: { active: boolean }) {
     return () => { alive = false; clearInterval(iv); };
   }, [active, status && status.state, status && status.parlons && status.parlons.ready]);
 
-  // One panel session per node start: key = panel port + the start time (uptime-based, 10 s resolution).
-  const key = st && st.ready && status ? `${st.panelPort}:${String(Date.now() - (status.uptimeMs || 0)).slice(0, -4)}` : '';
+  // One panel session per node start: key = panel port + the node's start time (from main, exact).
+  const key = st && st.ready && status && status.startedTs ? `${st.panelPort}:${status.startedTs}` : '';
   useEffect(() => {
     if (!active || !st || !st.ready || !key || key === loadedFor) return;
     let alive = true;

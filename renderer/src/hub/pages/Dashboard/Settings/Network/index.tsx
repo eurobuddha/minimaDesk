@@ -61,8 +61,10 @@ export function Network({ display, dismiss }: Props) {
   const [customMls, setCustomMls] = useState('');
   const [copied, setCopied] = useState(false);
 
+  const kindRef = useRef('');   // the interval below captures the first render's closure: read the kind through a ref
+  useEffect(() => { kindRef.current = status ? status.kind : ''; }, [status]);
   const refreshMaxima = async () => {
-    if (status && status.kind === 'parlons') return;   // the Parlons Node has no classic Maxima
+    if (kindRef.current === 'parlons') return;   // the Parlons Node has no classic Maxima
     try {
       const i = await minima.cmd('maxima action:info');
       if (i && i.status) setInfo(i.response);

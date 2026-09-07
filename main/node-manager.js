@@ -263,7 +263,7 @@ class NodeManager extends EventEmitter {
     for (const tok of tokenizeArgs(cfg.extraArgs)) {
       const key = tok.replace(/^-+/, "").toLowerCase();
       if (tok.startsWith("-") && PARLONS_REFUSED.has(key)) continue;
-      flags.push(/\s/.test(tok) ? q(tok) : tok);
+      flags.push(/[\s"'\\]/.test(tok) ? q(tok) : tok);
     }
     const confFlags = Object.keys(confParams || {}).filter((k) => !PARLONS_REFUSED.has(String(k).toLowerCase()));
     const args = [
@@ -706,13 +706,16 @@ class NodeManager extends EventEmitter {
   snapshot() {
     const cfg = config.load();
     const kind = cfg.nodeKind === "minima" ? "minima" : "parlons";
+    const basePort = parseInt(cfg.basePort, 10) || 20001;
+    const jar = kind === "parlons" ? this.parlonsJarPath() : this.classicJarPath();
     return { state: this.state, health: this.health, lastError: this.lastError, portOwner: this.portOwner || null,
-             kind, jar: this.jarPath(), heapMb: parseInt(cfg.heapMb, 10) || 0, adopted: !!this.adopted,
-             parlons: Object.assign({ panelPort: config.panelPort(), capePort: config.basePort() }, this.parlons),
+             kind, jar, heapMb: parseInt(cfg.heapMb, 10) || 0, adopted: !!this.adopted,
+             startedTs: (this.proc || this.adopted) ? this.startedTs : 0,
+             parlons: Object.assign({ panelPort: basePort + 586, capePort: basePort }, this.parlons),
              provision: { done: this.provisionDone, busy: this.provisionBusy },
              contribute: !!cfg.contribute, portmap: portmap.status(),
              maximaRelay: currentRelay(), mls: cfg.mls || { mode: "relay", custom: "" },
-             rpcPort: config.rpcPort(), mdsPort: config.mdsPort(), basePort: config.basePort(),
+             rpcPort: basePort + 4, mdsPort: basePort + 2, basePort,
              uptimeMs: (this.proc || this.adopted) && this.startedTs ? Date.now() - this.startedTs : 0 };
   }
   /** Ring-buffer tail with a monotonic sequence so the renderer can "clear" by position, not by text. */
