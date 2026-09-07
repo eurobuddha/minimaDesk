@@ -312,7 +312,7 @@ class NodeManager extends EventEmitter {
         throw new Error("kind mismatch");
       }
       if (s && s.status) {
-        this.log("[app] adopting already-running node on rpc " + config.rpcPort());
+        this.log("[app] adopting already-running " + (this.kind() === "parlons" ? "Parlons Node" : "node") + " on rpc " + config.rpcPort());
         this.adopted = true; this.startedTs = Date.now();
         this.startHealth();
         if (config.load().contribute) portmap.start(config.basePort());
@@ -571,6 +571,12 @@ class NodeManager extends EventEmitter {
             this.health.p2pAddress = p2p.address || "";
           } catch (e) { /* keep the carried values */ }
         }
+        // An ADOPTED Parlons Node narrated its account to a log we never saw: its panel listening on
+        // loopback (it comes up only once the account is up) is the honest readiness signal instead.
+        if (this.adopted && this.kind() === "parlons" && !this.parlons.ready && listeners(config.panelPort()).length) {
+          this.parlons.ready = true; this.parlons.error = "";
+          this.log("[app] adopted Parlons Node: the account's panel answers on 127.0.0.1:" + config.panelPort() + " - account up");
+        }
         if (this.state !== "running") this.setState("running"); else this.emit("status", this.snapshot());
         // Bundled dapps: install / update once MDS answers (retries on later ticks until it does).
         if (!this.provisionDone && !this.provisionBusy) {
@@ -701,7 +707,7 @@ class NodeManager extends EventEmitter {
     const cfg = config.load();
     const kind = cfg.nodeKind === "minima" ? "minima" : "parlons";
     return { state: this.state, health: this.health, lastError: this.lastError, portOwner: this.portOwner || null,
-             kind, jar: this.jarPath(), heapMb: parseInt(cfg.heapMb, 10) || 0,
+             kind, jar: this.jarPath(), heapMb: parseInt(cfg.heapMb, 10) || 0, adopted: !!this.adopted,
              parlons: Object.assign({ panelPort: config.panelPort(), capePort: config.basePort() }, this.parlons),
              provision: { done: this.provisionDone, busy: this.provisionBusy },
              contribute: !!cfg.contribute, portmap: portmap.status(),

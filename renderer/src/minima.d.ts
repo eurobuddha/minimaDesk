@@ -23,6 +23,7 @@ export type NodeSnapshot = {
   lastError: string | null;
   kind: NodeKind;
   jar: string;
+  adopted?: boolean;
   heapMb: number;
   parlons: ParlonsState;
   rpcPort: number;
