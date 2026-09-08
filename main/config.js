@@ -26,6 +26,8 @@ const DEFAULTS = {
   updateFeed: "",        // the one-app store feed minimaDesk checks for its own updates ("" = the eurobuddha.com feed)
   megammrHost: "",       // a MegaMMR node to restore a seed phrase from (host:port); "" = the fleet list in carryover.js
   parlonsCarried: null,  // {at, classicAddress, keys, keyuses} once the Parlons node carries the classic wallet (verified)
+  keyUses: {},           // ledger: { minima: {max, at}, parlons: {max, at} } = the highest key use last read on each node
+  keyUsesPending: null,  // {kind, to, at} while a needed counter raise has not succeeded: that node must not sign
   dataFolder: "",        // -data (empty → default under userData/minima-data)
   extraArgs: "",         // additional raw jar args, appended verbatim (validated against params.ALL_FLAGS)
   params: {},            // every other minima.jar startup flag (Settings → Startup parameters); secrets hold a `true` marker
@@ -63,6 +65,8 @@ function load() {
   // until the user switches in Settings; a fresh install starts on the Parlons Node.
   if (!("nodeKind" in j) && Object.keys(j).length) merged.nodeKind = "minima";
   if (merged.nodeKind !== "minima") merged.nodeKind = "parlons";
+  // 0.7.22 dev builds saved the Pi as the MegaMMR host; it serves no MegaMMR - fall back to the fleet list
+  if (merged.megammrHost === "31.125.188.214:9001") merged.megammrHost = "";
   // params: ONLY flags in the current manifest — a saved value wins, otherwise the default. A stale config
   // can never resurrect a flag the bundled jar no longer knows (the jar refuses to boot on an unknown flag).
   const defs = PARAMS.defaultParams(), sp = (j && j.params && typeof j.params === "object") ? j.params : {}, params = {};

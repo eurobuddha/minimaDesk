@@ -229,21 +229,23 @@ ipcMain.handle("node:setKind", async (_e, kind, heapMb, mode, existing) => {
     const k = kind === "minima" ? "minima" : "parlons";
     const heap = Math.max(0, parseInt(heapMb, 10) || 0);
     const before = config.load();
+    if (before.nodeKind === k) {
+      if ((parseInt(before.heapMb, 10) || 0) !== heap) { config.save({ heapMb: heap }); node.restart().catch(() => {}); }
+      return { status: true, kind: k, heapMb: heap };
+    }
+    let m = "", ex = "";
     if (k === "parlons") {
       const why = node.parlonsBlocker(); if (why) return { status: false, error: why };
-      if (before.nodeKind !== "parlons") {
-        const m = mode === "fresh" ? "fresh" : mode === "carry" ? "carry" : "";
-        const ex = existing === "replace" ? "replace" : existing === "keep" ? "keep" : "";
-        if (!m) return { status: false, error: "choose how to switch: carry your wallet over, or start a brand-new node" };
-        if (carryover.existingParlons().exists && !ex) return { status: false, error: "a Parlons node already exists: choose Replace it or Keep it" };
-        return carryover.start({ mode: m, existing: ex, heapMb: heap });
-      }
+      m = mode === "fresh" ? "fresh" : mode === "carry" ? "carry" : "";
+      ex = existing === "replace" ? "replace" : existing === "keep" ? "keep" : "";
+      if (!m) return { status: false, error: "choose how to switch: carry your wallet over, or start a brand-new node" };
+      if (carryover.existingParlons().exists && !ex) return { status: false, error: "a Parlons node already exists: choose Replace it or Keep it" };
     }
-    config.save({ nodeKind: k, heapMb: heap });
-    if (before.nodeKind !== k || (parseInt(before.heapMb, 10) || 0) !== heap) node.restart().catch(() => {});
-    return { status: true, kind: k, heapMb: heap };
+    // both directions run through carryover: it mirrors the key-use counters onto the node being started
+    return carryover.start({ target: k, mode: m, existing: ex, heapMb: heap });
   } catch (e) { return { status: false, error: e.message }; }
 });
+ipcMain.handle("carryover:retryRaise", () => carryover.retryRaise());
 ipcMain.handle("carryover:status", () => carryover.current());
 ipcMain.handle("carryover:existing", async () => {
   const ex = carryover.existingParlons();

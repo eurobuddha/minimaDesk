@@ -23,6 +23,10 @@ fork re-imported it, or by the classic jar). Reuse minimaCore's node/Parlons pat
   wipes archive/txpow on a format clash). classic → Parlons is an EXPLICIT choice in Settings (carry the
   wallet = phrase + key uses via megammrsync from a fleet MegaMMR node, identity.txt pinned first; or fresh);
   never switch a user's node silently. The Pi 31.125.188.214 has NO MegaMMR (resync fails there).
+- KEY USES BOTH WAYS (0.7.23, fund-critical): a switch reads the node being left; if its highest per-key
+  use m rose since the ledger (`config.keyUses`), the node being started gets every key set to m + 1
+  (fork: `keys action:createallkeys`; classic: its own `megammrsync … keyuses:`). Never lower a counter.
+  `keyUsesPending` = that node must not sign until the raise succeeds (red warning + Retry in Settings).
 - Parlons kind: the conf file carries `mdspassword` only (the node REFUSES rpcpassword/dbpassword:
   its admin RPC is loopback-only, unauthenticated); the bundled JRE MUST jlink `jdk.httpserver`.
 - NEVER run a gate/dev node on a copy of the owner's live data - fresh identity in a scratch dir

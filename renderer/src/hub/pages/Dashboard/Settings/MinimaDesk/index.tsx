@@ -11,7 +11,7 @@ import type { ClassicContact, ClassicDapp, ExistingParlons, NodeSnapshot, Ports,
 import ClassicImports from './ClassicImports';
 
 type Props = { display: boolean; dismiss: () => void };
-const STAGE_LABEL: Record<string, string> = { preflight: 'Reading the classic wallet…', stopping: 'Stopping the classic node…', setaside: 'Setting the earlier Parlons node aside…', starting: 'Starting the Parlons Node…', waiting: 'Waiting for its wallet…', resync: 'Restoring your seed phrase…', restarting: 'Restarting…', verifying: 'Verifying…' };
+const STAGE_LABEL: Record<string, string> = { preflight: 'Reading the node being left…', stopping: 'Stopping the node…', setaside: 'Setting the earlier Parlons node aside…', starting: 'Starting the other node…', waiting: 'Waiting for its wallet…', resync: 'Resyncing the wallet…', restarting: 'Restarting…', raising: 'Raising the key-use counters…', verifying: 'Verifying…' };
 
 export function MinimaDesk({ display, dismiss }: Props) {
   const minima = (window as any).minima;
@@ -135,6 +135,7 @@ export function MinimaDesk({ display, dismiss }: Props) {
                   {kind === 'parlons'
                     ? <Row k="Parlons account" v={status ? (status.parlons.error ? 'error — ' + status.parlons.error : status.parlons.ready ? 'up' : 'starting…') : '—'} />
                     : <Row k="Maxima" v={h ? (h.maxima ? 'online' : 'offline') : '—'} />}
+                  {status && status.parlonsCarried && <Row k="Key uses (highest seen)" v={`classic ${status.keyUses && status.keyUses.minima ? status.keyUses.minima.max : '—'} · Parlons ${status.keyUses && status.keyUses.parlons ? status.keyUses.parlons.max : '—'}`} />}
                   <Row k="Node version" v={h && h.version ? h.version : '—'} />
                   <Row k="Ports" v={ports ? `p2p ${ports.base} · mds ${ports.mds} · rpc ${ports.rpc}${kind === 'parlons' ? ` · panel ${ports.panel}` : ''}` : '—'} />
                   <Row k="minimaDesk version" v={ports ? ports.appVersion : '—'} />
@@ -160,6 +161,12 @@ export function MinimaDesk({ display, dismiss }: Props) {
                     : <>This is the <span className="text-white">classic Minima node</span> (the official jar with MDS and classic Maxima).</>}
                   {' '}Each kind is its <span className="text-white">own node</span> in its own folder{status && status.nodeFolder ? <> (this one: <span className="font-mono text-xs break-all">{status.nodeFolder}</span>)</> : null}: the classic node lives in <span className="font-mono text-xs">1.0</span>, the Parlons Node in <span className="font-mono text-xs">1.1</span>, and they cannot share a folder (different database formats). Switching stops one and starts the other; nothing is deleted.
                 </div>
+                {status && status.keyUsesPending && (
+                  <div className="mb-3 p-3 rounded bg-contrast2 text-sm text-red-400">
+                    <div className="text-white">Do not sign on the {status.keyUsesPending.kind === 'parlons' ? 'Parlons' : 'classic'} node yet.</div>
+                    Its key-use counters must be raised to {status.keyUsesPending.to} first (signing happened on the other node); the raise has not succeeded. {status.kind === status.keyUsesPending.kind ? <button className="underline text-white" disabled={!!co && co.stage !== 'idle' && co.stage !== 'done'} onClick={async () => { const r = await minima.carryoverRetryRaise(); setKindMsg(r && r.status ? 'Raising…' : (r && r.error) || 'failed'); }}>Retry the raise now</button> : <>Switch to that node and press Retry.</>}
+                  </div>
+                )}
                 {kind === 'parlons' && (status && status.parlonsCarried
                   ? <div className="mb-3 text-sm text-status-green">This Parlons node carries your classic wallet: same seed, {status.parlonsCarried.keys} keys, key uses {status.parlonsCarried.keyuses} (verified {new Date(status.parlonsCarried.at).toLocaleString()}). Address {status.parlonsCarried.classicAddress}.</div>
                   : <div className="mb-3 text-sm text-amber-300">This Parlons node has its <span className="text-white">own seed and wallet</span>, separate from the classic node's. To carry your classic wallet over instead: switch to the classic node below, then switch back choosing "Carry my wallet over" (the empty node is set aside, not deleted).</div>)}
@@ -176,7 +183,7 @@ export function MinimaDesk({ display, dismiss }: Props) {
                     <div className="text-white">How do you want to switch?</div>
                     <label className="flex items-start gap-3 cursor-pointer">
                       <input type="radio" name="carryMode" className="mt-1" checked={mode === 'carry'} onChange={() => setMode('carry')} />
-                      <span><span className="text-white">Carry my wallet over</span> (recommended) — the Parlons Node gets your seed phrase and your key-use counters, so your balance and addresses are the same. It resyncs its coins from the network ({'a few minutes'}). Your Maxima identity becomes a new one derived from that seed (classic Maxima used a separate random key); afterwards you can pick which classic contacts and MiniDapps to import. Needs the classic wallet unlocked.</span>
+                      <span><span className="text-white">Carry my wallet over</span> (recommended) — the Parlons Node gets your seed phrase and your key-use counters (every key set to the classic node's highest use + 1), so your balance and addresses are the same. From then on every switch mirrors the counters onto the node being started whenever signing happened on the other one. It resyncs its coins from the network ({'a few minutes'}). Your Maxima identity becomes a new one derived from that seed (classic Maxima used a separate random key); afterwards you can pick which classic contacts and MiniDapps to import. Needs the classic wallet unlocked.</span>
                     </label>
                     <label className="flex items-start gap-3 cursor-pointer">
                       <input type="radio" name="carryMode" className="mt-1" checked={mode === 'fresh'} onChange={() => setMode('fresh')} />
@@ -210,7 +217,7 @@ export function MinimaDesk({ display, dismiss }: Props) {
                     <div className="text-white mb-1">{co.stage === 'done' ? (co.ok ? 'Switched' : 'Switch failed') : STAGE_LABEL[co.stage] || co.stage}</div>
                     {co.detail && <div className="break-words">{co.detail}</div>}
                     {co.error && <div className="text-red-400 break-words">{co.error}</div>}
-                    {co.verified && <div className="text-core-grey-80 mt-1">Phrase {co.verified.phrase ? 'matches' : 'DIFFERS'} · keys {co.verified.addresses}/{co.verified.addressesOf} · key uses {co.verified.keyuses} (wanted ≥ {co.verified.wanted}){co.verified.classicAddress ? <> · address <span className="font-mono text-xs break-all">{co.verified.classicAddress}</span></> : null}</div>}
+                    {co.verified && <div className="text-core-grey-80 mt-1">{co.verified.phrase !== undefined ? <>Phrase {co.verified.phrase ? 'matches' : 'DIFFERS'} · keys {co.verified.addresses}/{co.verified.addressesOf} · </> : null}key uses {co.verified.keyuses} (wanted ≥ {co.verified.wanted}){co.verified.classicAddress ? <> · address <span className="font-mono text-xs break-all">{co.verified.classicAddress}</span></> : null}</div>}
                     {co.stage !== 'done' && <button className="mt-2 text-xs text-core-grey-80 underline" onClick={() => minima.carryoverCancel()}>Cancel</button>}
                   </div>
                 )}

@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld("minima", {
   carryoverStatus: () => invoke("carryover:status"),
   carryoverExisting: () => invoke("carryover:existing"),
   carryoverCancel: () => invoke("carryover:cancel"),
+  carryoverRetryRaise: () => invoke("carryover:retryRaise"),
   // selective imports from the classic node into the Parlons Node / account
   importContactsList: () => invoke("import:contactsList"),
   importContacts: (keys) => invoke("import:contacts", keys),

@@ -715,6 +715,7 @@ class NodeManager extends EventEmitter {
              nodeFolder: path.join(cfg.dataFolder || config.defaultDataFolder(), kind === "parlons" ? "1.1" : "1.0"),
              carryover: this.carryoverGetter ? this.carryoverGetter() : null,
              parlonsCarried: cfg.parlonsCarried || null,
+             keyUses: cfg.keyUses || {}, keyUsesPending: cfg.keyUsesPending || null,
              startedTs: (this.proc || this.adopted) ? this.startedTs : 0,
              parlons: Object.assign({ panelPort: basePort + 586, capePort: basePort }, this.parlons),
              provision: { done: this.provisionDone, busy: this.provisionBusy },

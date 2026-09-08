@@ -18,9 +18,9 @@ export type ParlonsStatus = {
   address: string; anchor: string; invite: string; hasTicket: boolean; blocker: string;
 };
 export type CarryoverState = {
-  stage: 'idle' | 'preflight' | 'stopping' | 'setaside' | 'starting' | 'waiting' | 'resync' | 'restarting' | 'verifying' | 'done';
-  ok: boolean | null; error: string; mode: string; detail: string; startedAt: number; finishedAt: number;
-  verified: { phrase: boolean; addresses: number; addressesOf: number; keyuses: number; wanted: number; classicAddress: string } | null;
+  stage: 'idle' | 'preflight' | 'stopping' | 'setaside' | 'starting' | 'waiting' | 'resync' | 'restarting' | 'raising' | 'verifying' | 'done';
+  ok: boolean | null; error: string; mode: string; target: string; detail: string; startedAt: number; finishedAt: number;
+  verified: { phrase?: boolean; addresses?: number; addressesOf?: number; keyuses: number; wanted: number; classicAddress?: string } | null;
 };
 export type ExistingParlons = { exists: boolean; folder?: string; devices?: number; address?: string; created?: number; hasIdentity?: boolean; balance?: { confirmed: string; unconfirmed: string } | null };
 export type ClassicContact = { publickey: string; name: string; mls: string; currentaddress: string; lastseen: number; address: string; already: boolean };
@@ -37,6 +37,8 @@ export type NodeSnapshot = {
   nodeFolder?: string;
   carryover?: CarryoverState | null;
   parlonsCarried?: { at: number; classicAddress: string; keys: number; keyuses: number } | null;
+  keyUses?: { minima?: { max: number; at: number }; parlons?: { max: number; at: number } };
+  keyUsesPending?: { kind: 'minima' | 'parlons'; to: number; at: number } | null;
   heapMb: number;
   parlons: ParlonsState;
   rpcPort: number;
@@ -90,6 +92,7 @@ export interface MinimaBridge {
   carryoverStatus(): Promise<CarryoverState>;
   carryoverExisting(): Promise<ExistingParlons>;
   carryoverCancel(): Promise<{ status: boolean }>;
+  carryoverRetryRaise(): Promise<{ status: boolean; error?: string }>;
   importContactsList(): Promise<{ status: boolean; error?: string; savedAt?: number; name?: string; classicAddress?: string; contacts?: ClassicContact[] }>;
   importContacts(keys: string[]): Promise<ImportResult>;
   importDappsList(): Promise<{ status: boolean; error?: string; classicFolder?: string; dapps?: ClassicDapp[] }>;
