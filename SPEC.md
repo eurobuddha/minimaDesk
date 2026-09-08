@@ -66,8 +66,8 @@ Electron main (main/*.js)  ──IPC (preload: window.minima)──▶  renderer
   from `panel-ticket.txt`; `main/parlonsapi.js`, `main/contactsimport.js`) and classic MiniDapps
   (`<data>/1.0/mds/web/<uid>` re-zipped → `mds action:install trust:read`; `main/dappimport.js`).
 - **Key uses both ways (0.7.23).** `config.keyUses` ledger = highest per-key `uses` last read on each kind.
-  Every switch reads the node being left; if its max m exceeds the ledger (signing happened), the node being
-  started gets every key set to m + 1 (`keys action:createallkeys` on the fork; classic: its own
+  Every switch reads the node being left (max per-key use m) and sets every key of the node being started
+  to m + 100, always (KEYUSES_MARGIN; the app cannot see every signature) (`keys action:createallkeys` on the fork; classic: its own
   `megammrsync … phrase keyuses:` - the classic jar has no cheaper setter, and it resets the wallet then
   applies `keyuses` BEFORE fetching the MegaMMR, so a failed fetch leaves counters high, never low).
   `config.keyUsesPending` names a node whose owed raise has not succeeded (red warning + Retry).

@@ -28,10 +28,10 @@ or **Start a brand-new node** (own seed, empty wallet, back it up). An existing 
 
 **Key uses, both ways (0.7.23).** A Minima key is a one-time-signature chain: its `uses` counter says how
 many slots are spent, and signing below the true counter re-uses a slot. Once both nodes hold the same
-wallet, every switch reads the node being left (highest per-key use = m) and, when m is higher than the
-value recorded for that node at the previous switch (signing happened there), sets every key of the node
-being started to **m + 1** (one spare slot for a signature that may have been in flight). No signing since
-the last switch means no change, so counters never creep. The Parlons Node is raised with `keys
+wallet, every switch reads the node being left (highest per-key use = m) and sets every key of the node
+being started to **m + 100**, on every switch and whether or not the app saw any signing (dapps, the phone
+gateway or an in-flight signature can spend slots it never observes): 501 on classic → 601 on the Parlons
+Node → 701 back on classic. The Parlons Node is raised with `keys
 action:createallkeys keyuses:N`; the classic node with its own `megammrsync … keyuses:N` (the only
 counter-setting command the classic jar has). Until a needed raise has succeeded, Settings → minimaDesk
 names the node that must not sign, in red, with a Retry.

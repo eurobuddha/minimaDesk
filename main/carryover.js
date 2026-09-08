@@ -14,11 +14,11 @@
  *
  * KEY USES, BOTH WAYS. A Minima key signs with a one-time-signature chain: `uses` is how many slots are
  * spent; signing with a counter below the true one re-uses a slot. Once both nodes hold the same wallet,
- * every switch reads the node being LEFT (its highest per-key `uses` = m) and, when m is higher than the
- * value recorded for that node in the ledger (config.keyUses - i.e. signing happened there), sets every key
- * of the node being STARTED to m + 1: m slots are spent, one spare covers a signature that may have been in
- * flight when m was read. No signing since the last switch → no change, so counters do not creep. The first
- * carry-over uses the same m + 1. Raising on the Parlons Node = `keys action:createallkeys keyuses:N`
+ * EVERY switch reads the node being LEFT (its highest per-key `uses` = m) and sets every key of the node
+ * being STARTED to m + KEYUSES_MARGIN (100) - always, whether or not the app saw any signing: dapps, the
+ * phone gateway or an in-flight signature can spend slots the app never observes, so each switch moves
+ * the counters up by a full margin (501 on classic → 601 on Parlons → 701 back on classic). The first
+ * carry-over uses the same m + 100. The ledger (config.keyUses) only records what was seen. Raising on the Parlons Node = `keys action:createallkeys keyuses:N`
  * (fork only); on the classic node = its own `megammrsync … phrase:"<its own vault phrase>" keyuses:N`
  * (the 1.0.49 jar has no cheaper counter-setting command; `vault resetkeys` wipes the chain DBs). Until a
  * needed raise has succeeded, config.keyUsesPending names the node that must not sign, and the Settings
@@ -33,7 +33,7 @@ const { rpcCall } = require("./rpc");
 
 const CLASSIC_FOLDER = "1.0";     // the classic jar's node folder under <data>
 const PARLONS_FOLDER = "1.1";     // the Parlons Node's (fork base version)
-const KEYUSES_SPARE = 1;          // the one spare slot above the highest observed use
+const KEYUSES_MARGIN = 100;       // added to the highest observed use on EVERY switch (owner's rule, 2026-09-08)
 const RPC_WAIT_MS = 4 * 60_000;   // a fresh Parlons Node needs its SSL keystore + 64 keys before vault answers
 const RESYNC_WAIT_MS = 20 * 60_000;
 // Fleet nodes that serve a MegaMMR (NODE-SETUP.md "The fleet"): megammr, eurobuddha, sally. The Pi (31.125.188.214)
@@ -307,7 +307,7 @@ function start({ target, mode, existing, heapMb }) {
       if (target === "parlons" && mode === "carry") {
         set({ stage: "waiting", detail: "Waiting for the Parlons Node's wallet (SSL keystore + 64 keys)…" });
         await waitForVault(RPC_WAIT_MS);
-        const N = pre.keys.max + KEYUSES_SPARE;
+        const N = pre.keys.max + KEYUSES_MARGIN;
         config.save({ keyUsesPending: { kind: "parlons", to: N, at: Date.now() } });
         const host = await resync(pre.phrase, N, "Restoring your seed phrase into the Parlons Node and resyncing its coins");
         await waitForSelfRestart("The node restarts itself after the resync (resynced from " + host + ")…");
@@ -332,17 +332,16 @@ function start({ target, mode, existing, heapMb }) {
         const here = await readKeys();
         // a raise still pending for THIS node (an earlier attempt failed) is owed whatever the ledger says
         const pending = config.load().keyUsesPending;
-        const owed = pending && pending.kind === target ? Math.max(leftMax + KEYUSES_SPARE, pending.to) : 0;
-        const N = Math.max(leftMax + KEYUSES_SPARE, owed);
-        if ((leftSigned || owed) && here.min < N) {
+        const N = Math.max(leftMax + KEYUSES_MARGIN, pending && pending.kind === target ? pending.to : 0);
+        if (here.min < N) {
           const k = await raiseRunning(target, N);
           set({ stage: "done", ok: true, finishedAt: Date.now(), verified: { keyuses: k.min, wanted: N },
-            detail: "Key-use counters mirrored: signing happened on the " + fromLabel + " node (highest use " + leftMax + "), so every key here is now at " + k.min + "." });
+            detail: "Key-use counters moved up: the " + fromLabel + " node's highest use was " + leftMax + (leftSigned ? " (signing happened there)" : "") + ", so every key here is now at " + k.min + " (+" + KEYUSES_MARGIN + " margin)." });
         } else {
           recordUses(target, here.max);
           if (pending && pending.kind === target) config.save({ keyUsesPending: null });   // already at or above what was owed
           set({ stage: "done", ok: true, finishedAt: Date.now(), verified: { keyuses: here.min, wanted: N },
-            detail: leftSigned ? "Key-use counters already at " + here.min + " (no raise needed)." : "No signing happened on the " + fromLabel + " node since the last switch: counters unchanged (" + here.min + ")." });
+            detail: "Key-use counters already at " + here.min + ", above the " + fromLabel + " node's highest use " + leftMax + " + " + KEYUSES_MARGIN + " - unchanged." });
         }
         return;
       }
