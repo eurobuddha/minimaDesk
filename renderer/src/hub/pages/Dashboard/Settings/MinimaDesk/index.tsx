@@ -7,9 +7,11 @@ import { useEffect, useState } from 'react';
 import SlideScreen from '../../../../components/UI/SlideScreen';
 import Button from '../../../../components/UI/Button';
 import BackButton from '../_BackButton';
-import type { NodeSnapshot, Ports, UpdateStatus } from '../../../../../minima';
+import type { ClassicContact, ClassicDapp, ExistingParlons, NodeSnapshot, Ports, UpdateStatus } from '../../../../../minima';
+import ClassicImports from './ClassicImports';
 
 type Props = { display: boolean; dismiss: () => void };
+const STAGE_LABEL: Record<string, string> = { preflight: 'Reading the classic wallet…', stopping: 'Stopping the classic node…', setaside: 'Setting the earlier Parlons node aside…', starting: 'Starting the Parlons Node…', waiting: 'Waiting for its wallet…', resync: 'Restoring your seed phrase…', restarting: 'Restarting…', verifying: 'Verifying…' };
 
 export function MinimaDesk({ display, dismiss }: Props) {
   const minima = (window as any).minima;
@@ -39,6 +41,7 @@ export function MinimaDesk({ display, dismiss }: Props) {
   }, [display]);
 
   const kind = status ? status.kind : 'parlons';
+  const co = status ? status.carryover : null;
   const checkUpdate = async () => {
     setUpdBusy('check'); setUpdMsg('');
     try { setUpd(await minima.updateCheck()); } catch (e: any) { setUpdMsg(e && e.message ? e.message : String(e)); }
@@ -57,14 +60,29 @@ export function MinimaDesk({ display, dismiss }: Props) {
     : upd.error ? `Could not check for updates (${upd.error}). Running ${upd.running}.`
     : upd.available ? `minimaDesk ${upd.version} is available${upd.date ? ' (' + upd.date + ')' : ''} — you run ${upd.running}.${upd.notes ? ' ' + upd.notes : ''}`
     : `You run ${upd.running}${upd.version ? ' — the newest published build is ' + upd.version : ''}.`;
+  const [mode, setMode] = useState<'carry' | 'fresh'>('carry');
+  const [existingChoice, setExistingChoice] = useState<'replace' | 'keep' | ''>('');
+  const [existing, setExisting] = useState<ExistingParlons | null>(null);
+  useEffect(() => {
+    if (!display || !minima) return;
+    minima.carryoverExisting().then((ex: ExistingParlons) => {
+      setExisting(ex);
+      if (ex && ex.exists && !existingChoice) {
+        // an empty, never-paired 1.1 (the one 0.7.15-0.7.21 created without asking) → Replace is the sensible default
+        const empty = (!ex.devices) && (!ex.balance || (ex.balance.confirmed === '0' && ex.balance.unconfirmed === '0'));
+        setExistingChoice(empty ? 'replace' : 'keep');
+      }
+    }).catch(() => {});
+  }, [display, kind]);
+  const switchingToParlons = kind === 'minima' && (kindPick || kind) === 'parlons';
   const applyKind = async () => {
     const want = kindPick || kind;
     const heapMb = Math.max(0, parseInt(heap, 10) || 0);
     setKindBusy(true); setKindMsg('');
     try {
-      const r = await minima.setNodeKind(want, heapMb);
+      const r = await minima.setNodeKind(want, heapMb, switchingToParlons ? mode : '', switchingToParlons && existing && existing.exists ? existingChoice : '');
       setKindMsg(r && r.status
-        ? (want === 'parlons' ? 'Parlons Node starting — see the Parlons tab.' : 'Classic Minima node starting.')
+        ? (want === 'parlons' ? (mode === 'carry' && !(existing && existing.exists && existingChoice === 'keep') ? 'Switching — progress below.' : 'Parlons Node starting — see the Parlons tab.') : 'Classic Minima node starting.')
         : 'Could not switch: ' + ((r && r.error) || 'unknown error'));
     } catch (e: any) { setKindMsg(e && e.message ? e.message : String(e)); }
     finally { setKindBusy(false); }
@@ -138,9 +156,13 @@ export function MinimaDesk({ display, dismiss }: Props) {
                 <div className="text-lg -mt-0.5 mb-2">Which node</div>
                 <div className="mb-3 text-core-grey-80">
                   {kind === 'parlons'
-                    ? <>This is the <span className="text-white">Parlons Node</span>: the full Minima node with MiniDapps served by the node itself, plus your Parlons account (chat, calls, payments) under this node's seed, and a Maxima relay for others when you contribute. The Parlons tab is your account.</>
-                    : <>This is the <span className="text-white">classic Minima node</span> (the official jar with MDS and classic Maxima). The Parlons Node is the same chain, wallet and data folder, plus your Parlons account under this seed.</>}
+                    ? <>This is the <span className="text-white">Parlons Node</span>: a full Minima node with MiniDapps served by the node itself, plus your Parlons account (chat, calls, payments) under this node's seed, and a Maxima relay for others when you contribute. The Parlons tab is your account.</>
+                    : <>This is the <span className="text-white">classic Minima node</span> (the official jar with MDS and classic Maxima).</>}
+                  {' '}Each kind is its <span className="text-white">own node</span> in its own folder{status && status.nodeFolder ? <> (this one: <span className="font-mono text-xs break-all">{status.nodeFolder}</span>)</> : null}: the classic node lives in <span className="font-mono text-xs">1.0</span>, the Parlons Node in <span className="font-mono text-xs">1.1</span>, and they cannot share a folder (different database formats). Switching stops one and starts the other; nothing is deleted.
                 </div>
+                {kind === 'parlons' && (status && status.parlonsCarried
+                  ? <div className="mb-3 text-sm text-status-green">This Parlons node carries your classic wallet: same seed, {status.parlonsCarried.keys} keys, key uses {status.parlonsCarried.keyuses} (verified {new Date(status.parlonsCarried.at).toLocaleString()}). Address {status.parlonsCarried.classicAddress}.</div>
+                  : <div className="mb-3 text-sm text-amber-300">This Parlons node has its <span className="text-white">own seed and wallet</span>, separate from the classic node's. To carry your classic wallet over instead: switch to the classic node below, then switch back choosing "Carry my wallet over" (the empty node is set aside, not deleted).</div>)}
                 <label className="flex items-start gap-3 py-2 cursor-pointer">
                   <input type="radio" name="nodeKind" className="mt-1" checked={(kindPick || kind) === 'parlons'} onChange={() => setKindPick('parlons')} disabled={!!blocker} />
                   <span><span className="text-white">Parlons Node</span> — node + MiniDapps + your Parlons account (recommended){blocker ? <span className="block text-sm text-amber-300">{blocker}</span> : null}</span>
@@ -149,15 +171,52 @@ export function MinimaDesk({ display, dismiss }: Props) {
                   <input type="radio" name="nodeKind" className="mt-1" checked={(kindPick || kind) === 'minima'} onChange={() => setKindPick('minima')} />
                   <span><span className="text-white">Classic Minima node</span> — the official jar, classic Maxima, no Parlons account</span>
                 </label>
+                {switchingToParlons && (
+                  <div className="mt-2 mb-3 p-3 rounded bg-contrast2 text-sm flex flex-col gap-3">
+                    <div className="text-white">How do you want to switch?</div>
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input type="radio" name="carryMode" className="mt-1" checked={mode === 'carry'} onChange={() => setMode('carry')} />
+                      <span><span className="text-white">Carry my wallet over</span> (recommended) — the Parlons Node gets your seed phrase and your key-use counters, so your balance and addresses are the same. It resyncs its coins from the network ({'a few minutes'}). Your Maxima identity becomes a new one derived from that seed (classic Maxima used a separate random key); afterwards you can pick which classic contacts and MiniDapps to import. Needs the classic wallet unlocked.</span>
+                    </label>
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input type="radio" name="carryMode" className="mt-1" checked={mode === 'fresh'} onChange={() => setMode('fresh')} />
+                      <span><span className="text-white">Start a brand-new node</span> — a new seed and an empty wallet. Back that seed up separately (Terminal: <span className="font-mono">vault</span>). Your classic wallet stays in the classic node.</span>
+                    </label>
+                    {existing && existing.exists && (
+                      <div className="pt-2 border-t border-contrast4 border-opacity-40 flex flex-col gap-2">
+                        <div className="text-core-grey-80">A Parlons node already exists in <span className="font-mono text-xs break-all">{existing.folder}</span>{existing.devices ? `, ${existing.devices} paired device(s)` : ', no paired devices'}{existing.balance ? `, balance ${existing.balance.confirmed} Minima` : ''}{existing.address ? <>, wallet address <span className="font-mono text-xs break-all">{existing.address}</span></> : null}.</div>
+                        <label className="flex items-start gap-3 cursor-pointer">
+                          <input type="radio" name="existingChoice" className="mt-1" checked={existingChoice === 'replace'} onChange={() => setExistingChoice('replace')} />
+                          <span><span className="text-white">Replace it</span> — it is set aside (renamed, never deleted) and the choice above builds a new one.</span>
+                        </label>
+                        <label className="flex items-start gap-3 cursor-pointer">
+                          <input type="radio" name="existingChoice" className="mt-1" checked={existingChoice === 'keep'} onChange={() => setExistingChoice('keep')} />
+                          <span><span className="text-white">Keep it as it is</span> — start that node unchanged (its own seed, identity and devices; nothing is carried over).</span>
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="mt-2 mb-3">
                   <div className="text-sm text-core-grey-80 mb-1">Parlons Node memory (MB; 0 = automatic: 3072 with MegaMMR, else 1536)</div>
                   <input className="w-full border-2 border-core-black-contrast-3 bg-black outline-none rounded py-2 px-3 text-sm font-mono" inputMode="numeric" value={heap} onChange={(e) => setHeap(e.target.value)} />
                 </div>
-                <Button variant="secondary" onClick={applyKind} disabled={kindBusy || ((kindPick || kind) === 'parlons' && !!blocker)}>
-                  {kindBusy ? 'Restarting…' : 'Apply and restart the node'}
+                <Button variant="secondary" onClick={applyKind} disabled={kindBusy || ((kindPick || kind) === 'parlons' && !!blocker) || (switchingToParlons && !!existing && existing.exists && !existingChoice) || (!!co && co.stage !== 'idle' && co.stage !== 'done')}>
+                  {kindBusy ? 'Working…' : switchingToParlons ? (mode === 'carry' ? 'Switch and carry my wallet over' : 'Switch to a brand-new Parlons node') : (kindPick || kind) === kind ? 'Apply and restart the node' : 'Switch to the classic node'}
                 </Button>
                 {kindMsg && <div className="mt-3 text-sm text-core-grey-80">{kindMsg}</div>}
+                {co && co.stage !== 'idle' && (
+                  <div className={`mt-3 p-3 rounded text-sm ${co.stage === 'done' ? (co.ok ? 'bg-contrast2 text-status-green' : 'bg-contrast2 text-red-400') : 'bg-contrast2 text-core-grey-20'}`}>
+                    <div className="text-white mb-1">{co.stage === 'done' ? (co.ok ? 'Switched' : 'Switch failed') : STAGE_LABEL[co.stage] || co.stage}</div>
+                    {co.detail && <div className="break-words">{co.detail}</div>}
+                    {co.error && <div className="text-red-400 break-words">{co.error}</div>}
+                    {co.verified && <div className="text-core-grey-80 mt-1">Phrase {co.verified.phrase ? 'matches' : 'DIFFERS'} · keys {co.verified.addresses}/{co.verified.addressesOf} · key uses {co.verified.keyuses} (wanted ≥ {co.verified.wanted}){co.verified.classicAddress ? <> · address <span className="font-mono text-xs break-all">{co.verified.classicAddress}</span></> : null}</div>}
+                    {co.stage !== 'done' && <button className="mt-2 text-xs text-core-grey-80 underline" onClick={() => minima.carryoverCancel()}>Cancel</button>}
+                  </div>
+                )}
               </div>
+
+              {kind === 'parlons' && display && <ClassicImports accountReady={!!(status && status.parlons && status.parlons.ready)} nodeRunning={state === 'running'} />}
 
               {kind !== 'parlons' && <div className="bg-contrast1 p-4 rounded">
                 <div className="text-lg -mt-0.5 mb-2">Heal Maxima</div>

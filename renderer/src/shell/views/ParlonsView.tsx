@@ -56,21 +56,16 @@ export default function ParlonsView({ active }: { active: boolean }) {
     setMsg(ok ? 'Opened in your browser with a fresh one-time link.' : 'No sign-in link yet - the account is still starting.');
     setTimeout(() => setMsg(''), 4000);
   };
-  const switchKind = async () => {
-    setSwitching('Switching…');
-    try {
-      const r = await window.minima.setNodeKind('parlons');
-      setSwitching(r && r.status ? 'Parlons Node starting - same chain, same wallet, same data folder.' : (r && r.error) || 'Could not switch.');
-    } catch (e: any) { setSwitching(e && e.message ? e.message : String(e)); }
-  };
+  const { switchTab } = useShell();
+  const goSettings = () => { switchTab('home'); location.hash = '#/settings'; setSwitching('Open Settings → minimaDesk → Which node.'); };
 
   if (kind !== 'parlons') {
     return (
       <div className="parlons-card">
         <h2>Parlons</h2>
-        <p>Your node can host your Parlons account: private chat, calls and payments under this node's own seed, with your phones and computers paired to it. This install still runs the classic Minima node.</p>
+        <p>Your node can host your Parlons account: private chat, calls and payments, with your phones and computers paired to it. This install runs the classic Minima node; the Parlons Node is a separate node (its own folder), and Settings lets you carry your wallet's seed phrase and key-use counters over, or start a brand-new node.</p>
         {st && st.blocker ? <div className="parlons-warn">{st.blocker}</div>
-          : <button className="btn" onClick={switchKind} disabled={!!switching}>Switch to the Parlons Node (restarts the node; wallet and data stay)</button>}
+          : <button className="btn" onClick={goSettings}>Switch in Settings → minimaDesk (explains what carries over)</button>}
         {switching && <div className="parlons-msg">{switching}</div>}
       </div>
     );

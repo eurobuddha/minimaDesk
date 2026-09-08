@@ -9,13 +9,22 @@ and opens installed MDS MiniDapps as **tabs**, in the Minima 2024 brand.
 MiniHub, in a party dress.
 
 Since 0.7.15 the node is the **Parlons Node** by default (`parlons-node.jar` from
-[eurobuddha/maxima](https://github.com/eurobuddha/maxima), pinned in `package.json` `parlonsNode`): the same
-full Minima node, with the MiniDapp System served by the node itself (loopback only, the MiniHUB and any
+[eurobuddha/maxima](https://github.com/eurobuddha/maxima), pinned in `package.json` `parlonsNode`): a
+full Minima node with the MiniDapp System served by the node itself (loopback only, the MiniHUB and any
 `.mds.zip` exactly as before), plus **your Parlons account** — private chat, calls and payments under this
 node's seed, phones and computers paired to it — in its own **Parlons tab**, and a Maxima relay for others
-when you contribute (one public port). Settings → minimaDesk switches between the Parlons Node and the
-**classic** official `minima.jar` (MDS + classic Maxima); same chain, same wallet, same data folder either
-way. An install from before 0.7.15 keeps the classic jar until it switches.
+when you contribute (one public port). The **classic** official `minima.jar` (MDS + classic Maxima) stays
+as the second kind. An install from before 0.7.15 keeps the classic jar until it switches.
+
+**Two kinds = two nodes.** The classic node lives in `<data>/1.0`, the Parlons Node in `<data>/1.1`; they
+cannot share a folder (their H2 database formats are mutually unreadable). Switching in Settings → minimaDesk
+is therefore an explicit choice (0.7.22): **Carry my wallet over** (the default) reads your seed phrase and
+key-use counters from the running classic node, pins the Parlons identity to that phrase, restores the
+phrase into the Parlons Node with `megammrsync … keyuses:N` from a fleet MegaMMR node, and verifies the
+64 keys and counters before saying so — same balance, same addresses, a new seed-derived Maxima identity;
+or **Start a brand-new node** (own seed, empty wallet, back it up). An existing Parlons node is set aside
+(renamed, never deleted) or kept. Afterwards you tick which classic **Maxima contacts** and which classic
+**MiniDapps** to import — nothing is imported on its own, and a dapp's own data does not come along.
 
 - **Real node, real MDS, real dapps** — true backwards compatibility. Any standard
   `.mds.zip` installs and runs unmodified.

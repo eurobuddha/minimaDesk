@@ -24,6 +24,8 @@ const DEFAULTS = {
   nodeKind: "parlons",  // "parlons" = parlons-node.jar (node + MDS + your Parlons account); "minima" = classic minima.jar
   heapMb: 0,             // -Xmx for the Parlons Node (0 = automatic: 3072 with MegaMMR, else 1536)
   updateFeed: "",        // the one-app store feed minimaDesk checks for its own updates ("" = the eurobuddha.com feed)
+  megammrHost: "",       // a MegaMMR node to restore a seed phrase from (host:port); "" = the fleet list in carryover.js
+  parlonsCarried: null,  // {at, classicAddress, keys, keyuses} once the Parlons node carries the classic wallet (verified)
   dataFolder: "",        // -data (empty → default under userData/minima-data)
   extraArgs: "",         // additional raw jar args, appended verbatim (validated against params.ALL_FLAGS)
   params: {},            // every other minima.jar startup flag (Settings → Startup parameters); secrets hold a `true` marker
@@ -89,6 +91,8 @@ function nodeKind() { return load().nodeKind === "minima" ? "minima" : "parlons"
 function panelPort() { return basePort() + 586; }
 /** The Parlons Node's loopback wallet gateway (Parlons kind only). */
 function gatewayPort() { return basePort() + 584; }
+/** The MegaMMR host a seed phrase is restored from (host:port). */
+function megammrHost() { const h = String(load().megammrHost || "").trim(); return /^[\w.\-]+:\d+$/.test(h) ? h : ""; }
 function rpcPort() { return basePort() + 4; }
 function mdsPort() { return basePort() + 2; }
 
@@ -148,7 +152,7 @@ function effectiveParams(cfg) {
 
 module.exports = {
   load, save, writeAtomic, defaultDataFolder,
-  basePort, rpcPort, mdsPort, nodeKind, panelPort, gatewayPort,
+  basePort, rpcPort, mdsPort, nodeKind, panelPort, gatewayPort, megammrHost,
   rpcSecret, mdsPassword,
   effectiveParams, paramSecretGet, paramSecretSet, paramSecretDelete
 };

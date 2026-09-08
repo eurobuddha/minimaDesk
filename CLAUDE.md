@@ -19,6 +19,10 @@ fork re-imported it, or by the classic jar). Reuse minimaCore's node/Parlons pat
 ## Node facts
 - Base port default **20001** (coexists with 9001/11001/12001/16001 nodes). MDS =
   base+2, RPC = base+4; Parlons kind: gateway = base+584, panel = base+586, relay = base (shared).
+- TWO NODE FOLDERS: classic `<data>/1.0`, Parlons `<data>/1.1` - never shared (H2 formats differ; the fork
+  wipes archive/txpow on a format clash). classic → Parlons is an EXPLICIT choice in Settings (carry the
+  wallet = phrase + key uses via megammrsync from a fleet MegaMMR node, identity.txt pinned first; or fresh);
+  never switch a user's node silently. The Pi 31.125.188.214 has NO MegaMMR (resync fails there).
 - Parlons kind: the conf file carries `mdspassword` only (the node REFUSES rpcpassword/dbpassword:
   its admin RPC is loopback-only, unauthenticated); the bundled JRE MUST jlink `jdk.httpserver`.
 - NEVER run a gate/dev node on a copy of the owner's live data - fresh identity in a scratch dir

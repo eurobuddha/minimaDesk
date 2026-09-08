@@ -52,10 +52,19 @@ Electron main (main/*.js)  ──IPC (preload: window.minima)──▶  renderer
   goes to the OS browser, nothing else. `file:` is never opened from web content. `will-attach-webview`
   strips preload/node integration. The self-signed MDS cert is trusted for one loopback host:port only.
 - **Dapps run untouched.** Any standard `.mds.zip` installs and runs; Maxima rides the node's own port.
-- **Two node kinds (0.7.15).** `parlons`: `parlons-node.jar`, MDS served by the node (loopback, same password
-  file via `-Dparlons.node.conf`), the Parlons account + relay-when-contributing; the node's admin RPC is
-  loopback-only and unauthenticated (rpc.js's Basic header is ignored). `minima`: the classic jar as before.
+- **Two node kinds (0.7.15) = two node folders.** `parlons`: `parlons-node.jar`, MDS served by the node (loopback,
+  same password file via `-Dparlons.node.conf`), the Parlons account + relay-when-contributing, node folder
+  `<data>/1.1`; the node's admin RPC is loopback-only and unauthenticated (rpc.js's Basic header is ignored).
+  `minima`: the classic jar, `<data>/1.0`. The folders are never shared (H2 2.1 format 2 vs H2 2.4 format 3).
   Adoption refuses a running node of the other kind; reclaim knows both jars.
+- **The switch is explicit (0.7.22, `main/carryover.js`).** classic → Parlons asks: carry the wallet (vault
+  phrase + max key uses + 2 read from the running classic node; `identity.txt` written before first boot;
+  `megammrsync action:resync host:<fleet MegaMMR> phrase keyuses` over the admin RPC; verified: phrase, 64
+  public keys, uses ≥ N; outcome in `snapshot.carryover` / `config.parlonsCarried`) or start fresh; an
+  existing 1.1 is set aside (`1.1-set-aside-<stamp>/`) or kept. Then selective imports: classic Maxima
+  contacts (`maxcontacts` snapshot → the account's panel API `contacts.add` as `MAX#<key>#<mls>`, ticket
+  from `panel-ticket.txt`; `main/parlonsapi.js`, `main/contactsimport.js`) and classic MiniDapps
+  (`<data>/1.0/mds/web/<uid>` re-zipped → `mds action:install trust:read`; `main/dappimport.js`).
 
 ## 2. Features (shipped — verified)
 

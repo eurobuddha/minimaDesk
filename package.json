@@ -1,7 +1,7 @@
 {
   "name": "minimadesk",
   "productName": "minimaDesk",
-  "version": "0.7.21",
+  "version": "0.7.22",
   "description": "A polished desktop MiniDapp platform \u2014 runs a full Minima classic node and opens installed MDS MiniDapps as tabs. MiniHub, in a party dress.",
   "author": "eurobuddha",
   "license": "MIT",
@@ -30,7 +30,6 @@
     "electron-builder": "^25.0.0",
     "embla-carousel-react": "^8.0.0",
     "embla-carousel-wheel-gestures": "^8.0.0",
-    "jszip": "^3.10.1",
     "lodash": "^4.17.21",
     "postcss": "^8.4.0",
     "react": "^18.2.0",
@@ -118,7 +117,8 @@
     }
   },
   "dependencies": {
-    "@silentbot1/nat-api": "^0.4.9"
+    "@silentbot1/nat-api": "^0.4.9",
+    "jszip": "^3.10.1"
   },
-  "parlonsNode": "0.2.61"
+  "parlonsNode": "0.2.62"
 }

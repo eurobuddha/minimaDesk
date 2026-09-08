@@ -17,6 +17,15 @@ export type ParlonsStatus = {
   kind: NodeKind; ready: boolean; error: string; version: string; cape: boolean; panelPort: number; capePort: number;
   address: string; anchor: string; invite: string; hasTicket: boolean; blocker: string;
 };
+export type CarryoverState = {
+  stage: 'idle' | 'preflight' | 'stopping' | 'setaside' | 'starting' | 'waiting' | 'resync' | 'restarting' | 'verifying' | 'done';
+  ok: boolean | null; error: string; mode: string; detail: string; startedAt: number; finishedAt: number;
+  verified: { phrase: boolean; addresses: number; addressesOf: number; keyuses: number; wanted: number; classicAddress: string } | null;
+};
+export type ExistingParlons = { exists: boolean; folder?: string; devices?: number; address?: string; created?: number; hasIdentity?: boolean; balance?: { confirmed: string; unconfirmed: string } | null };
+export type ClassicContact = { publickey: string; name: string; mls: string; currentaddress: string; lastseen: number; address: string; already: boolean };
+export type ClassicDapp = { uid: string; name: string; version: string; description: string; icon: string; size: number; installed: string };
+export type ImportResult = { status: boolean; error?: string; results?: { publickey?: string; uid?: string; name: string; status: boolean; error: string }[] };
 export type NodeSnapshot = {
   state: 'stopped' | 'starting' | 'running' | 'stopping' | 'error';
   health: NodeHealth | null;
@@ -25,6 +34,9 @@ export type NodeSnapshot = {
   jar: string;
   adopted?: boolean;
   startedTs?: number;
+  nodeFolder?: string;
+  carryover?: CarryoverState | null;
+  parlonsCarried?: { at: number; classicAddress: string; keys: number; keyuses: number } | null;
   heapMb: number;
   parlons: ParlonsState;
   rpcPort: number;
@@ -74,7 +86,14 @@ export interface MinimaBridge {
   parlonsStatus(): Promise<ParlonsStatus>;
   parlonsPanelUrl(): Promise<string>;
   parlonsOpenExternal(): Promise<boolean>;
-  setNodeKind(kind: NodeKind, heapMb?: number): Promise<{ status: boolean; kind?: NodeKind; heapMb?: number; error?: string }>;
+  setNodeKind(kind: NodeKind, heapMb?: number, mode?: 'carry' | 'fresh' | '', existing?: 'replace' | 'keep' | ''): Promise<{ status: boolean; kind?: NodeKind; heapMb?: number; error?: string }>;
+  carryoverStatus(): Promise<CarryoverState>;
+  carryoverExisting(): Promise<ExistingParlons>;
+  carryoverCancel(): Promise<{ status: boolean }>;
+  importContactsList(): Promise<{ status: boolean; error?: string; savedAt?: number; name?: string; classicAddress?: string; contacts?: ClassicContact[] }>;
+  importContacts(keys: string[]): Promise<ImportResult>;
+  importDappsList(): Promise<{ status: boolean; error?: string; classicFolder?: string; dapps?: ClassicDapp[] }>;
+  importDapps(uids: string[]): Promise<ImportResult>;
   updateStatus(): Promise<UpdateStatus>;
   updateCheck(): Promise<UpdateStatus>;
   updateDownload(): Promise<{ status: boolean; path?: string; update?: UpdateStatus; error?: string }>;

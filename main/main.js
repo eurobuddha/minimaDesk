@@ -22,6 +22,10 @@ const startup = require("./startup");
 const { KNOWN_RELAYS } = require("./relays");
 const parlons = require("./parlons");   // the Parlons account the Parlons Node hosts (nodeKind "parlons")
 const updater = require("./updater");   // app updates from the minimaDesk store feed (the jars ship with the app)
+const carryover = require("./carryover"); // classic → Parlons Node: carry the wallet (seed + key uses) over, or start fresh
+node.carryoverGetter = () => carryover.current();
+const contactsimport = require("./contactsimport");   // classic Maxima contacts → the Parlons account, ticked one by one
+const dappimport = require("./dappimport");           // classic MiniDapps → the Parlons Node, ticked one by one
 
 // Dev only: run from an isolated userData (own secrets, own single-instance lock, own config/port) so a
 // dev build can run next to the installed app. Set MDESK_USERDATA=<dir> (seed <dir>/config.json first).
@@ -216,18 +220,42 @@ ipcMain.handle("update:download", async () => { try { const p = await updater.do
 ipcMain.handle("parlons:status", () => parlons.status());
 ipcMain.handle("parlons:panelUrl", () => parlons.ticketUrl());
 ipcMain.handle("parlons:openExternal", () => parlons.openExternal());
-/** Switch the node kind (and the Parlons heap), then restart the node. Same data folder, same wallet. */
-ipcMain.handle("node:setKind", async (_e, kind, heapMb) => {
+/** Switch the node kind (and the Parlons heap). Each kind is its own node folder (<data>/1.0 classic, <data>/1.1
+ *  Parlons). classic → Parlons takes a `mode`: "carry" (seed + key uses over, the default in the UI), "fresh" (a
+ *  brand-new node), and `existing` when a 1.1 already exists: "replace" (set it aside) or "keep" (use it as is).
+ *  Never a silent switch: without a mode the call is refused. */
+ipcMain.handle("node:setKind", async (_e, kind, heapMb, mode, existing) => {
   try {
     const k = kind === "minima" ? "minima" : "parlons";
-    if (k === "parlons") { const why = node.parlonsBlocker(); if (why) return { status: false, error: why }; }
     const heap = Math.max(0, parseInt(heapMb, 10) || 0);
     const before = config.load();
+    if (k === "parlons") {
+      const why = node.parlonsBlocker(); if (why) return { status: false, error: why };
+      if (before.nodeKind !== "parlons") {
+        const m = mode === "fresh" ? "fresh" : mode === "carry" ? "carry" : "";
+        const ex = existing === "replace" ? "replace" : existing === "keep" ? "keep" : "";
+        if (!m) return { status: false, error: "choose how to switch: carry your wallet over, or start a brand-new node" };
+        if (carryover.existingParlons().exists && !ex) return { status: false, error: "a Parlons node already exists: choose Replace it or Keep it" };
+        return carryover.start({ mode: m, existing: ex, heapMb: heap });
+      }
+    }
     config.save({ nodeKind: k, heapMb: heap });
     if (before.nodeKind !== k || (parseInt(before.heapMb, 10) || 0) !== heap) node.restart().catch(() => {});
     return { status: true, kind: k, heapMb: heap };
   } catch (e) { return { status: false, error: e.message }; }
 });
+ipcMain.handle("carryover:status", () => carryover.current());
+ipcMain.handle("carryover:existing", async () => {
+  const ex = carryover.existingParlons();
+  if (ex.exists && config.nodeKind() === "parlons") ex.balance = await carryover.runningBalance();
+  return ex;
+});
+ipcMain.handle("carryover:cancel", () => { carryover.cancel(); return { status: true }; });
+// ---- selective imports from the classic node (Parlons kind): contacts via the account's panel API, dapps re-packed ----
+ipcMain.handle("import:contactsList", async () => { try { return Object.assign({ status: true }, await contactsimport.listClassic()); } catch (e) { return { status: false, error: e.message }; } });
+ipcMain.handle("import:contacts", async (_e, keys) => { try { return await contactsimport.importClassic(keys); } catch (e) { return { status: false, error: e.message }; } });
+ipcMain.handle("import:dappsList", async () => { try { return Object.assign({ status: true }, await dappimport.listClassic()); } catch (e) { return { status: false, error: e.message }; } });
+ipcMain.handle("import:dapps", async (_e, uids) => { try { return await dappimport.importClassic(uids); } catch (e) { return { status: false, error: e.message }; } });
 ipcMain.handle("node:stop", async (_e, compact) => { try { await node.stop({ compact: !!compact }); return { status: true }; } catch (e) { return { status: false, error: e.message }; } });
 ipcMain.handle("node:restart", async () => { try { await node.restart(); return { status: true }; } catch (e) { return { status: false, error: e.message }; } });
 

@@ -42,7 +42,15 @@ contextBridge.exposeInMainWorld("minima", {
   parlonsStatus: () => invoke("parlons:status"),
   parlonsPanelUrl: () => invoke("parlons:panelUrl"),
   parlonsOpenExternal: () => invoke("parlons:openExternal"),
-  setNodeKind: (kind, heapMb) => invoke("node:setKind", kind, heapMb),
+  setNodeKind: (kind, heapMb, mode, existing) => invoke("node:setKind", kind, heapMb, mode || "", existing || ""),
+  carryoverStatus: () => invoke("carryover:status"),
+  carryoverExisting: () => invoke("carryover:existing"),
+  carryoverCancel: () => invoke("carryover:cancel"),
+  // selective imports from the classic node into the Parlons Node / account
+  importContactsList: () => invoke("import:contactsList"),
+  importContacts: (keys) => invoke("import:contacts", keys),
+  importDappsList: () => invoke("import:dappsList"),
+  importDapps: (uids) => invoke("import:dapps", uids),
 
   // app updates from the minimaDesk store feed (checked at boot and every 6 h; download verified against the feed's sha256)
   updateStatus: () => invoke("update:status"),

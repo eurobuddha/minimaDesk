@@ -107,6 +107,7 @@
 .nodechip .dot { width: 8px; height: 8px; border-radius: 50%; background: #464c4f; flex: none; }
 .nodechip .dot.on { background: #4fe3c1; box-shadow: 0 0 0 3px rgba(79, 227, 193, 0.18); }
 .nodechip .dot.err { background: #ff627e; box-shadow: 0 0 0 3px rgba(255, 98, 126, 0.18); }
+.nodechip .dot.warn { background: #ffb020; box-shadow: 0 0 0 3px rgba(255, 176, 32, 0.18); }
 .nodechip .dot.busy { background: #a7a7b0; animation: shell-pulse 1.2s ease-in-out infinite; }
 .nodechip .sep { color: #464c4f; font-weight: 500; }
 .nodechip .dim { color: #91919d; font-weight: 500; }

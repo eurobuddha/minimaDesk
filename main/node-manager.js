@@ -134,6 +134,7 @@ class NodeManager extends EventEmitter {
     // Parlons Node: the account's readiness comes from the jar's own log lines, not from `status` (the chain
     // answers well before the account has attached to the relays).
     this.parlons = { ready: false, error: "", version: "", cape: false };
+    this.carryoverGetter = null;   // set by carryover.js (it requires this module, so no require the other way)
     this.selfRestarts = [];      // timestamps of automatic restarts after a clean self-shutdown
     portmap.setLogger(line => this.log(line));
     portmap.on("status", st => {
@@ -710,6 +711,10 @@ class NodeManager extends EventEmitter {
     const jar = kind === "parlons" ? this.parlonsJarPath() : this.classicJarPath();
     return { state: this.state, health: this.health, lastError: this.lastError, portOwner: this.portOwner || null,
              kind, jar, heapMb: parseInt(cfg.heapMb, 10) || 0, adopted: !!this.adopted,
+             // each kind is its OWN node folder: classic <data>/1.0, Parlons <data>/1.1 (different H2 formats, never shared)
+             nodeFolder: path.join(cfg.dataFolder || config.defaultDataFolder(), kind === "parlons" ? "1.1" : "1.0"),
+             carryover: this.carryoverGetter ? this.carryoverGetter() : null,
+             parlonsCarried: cfg.parlonsCarried || null,
              startedTs: (this.proc || this.adopted) ? this.startedTs : 0,
              parlons: Object.assign({ panelPort: basePort + 586, capePort: basePort }, this.parlons),
              provision: { done: this.provisionDone, busy: this.provisionBusy },

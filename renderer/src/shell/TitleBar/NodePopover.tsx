@@ -70,6 +70,7 @@ export default function NodePopover({ onClose }: { onClose: () => void }) {
         <div className="row"><span className="k">Status</span><span className={`v ${state === 'running' ? 'ok' : state === 'error' ? 'bad' : ''}`}>{state}{status && status.lastError ? ` — ${status.lastError}` : ''}</span></div>
         <div className="row"><span className="k">Block</span><span className="v">{h ? Number(h.block || 0).toLocaleString('en-US') : '—'}</span></div>
         <div className="row"><span className="k">Connections</span><span className="v">{h ? h.connections : '—'}</span></div>
+        {status && status.nodeFolder && <div className="row"><span className="k">Node folder</span><span className="v" style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 11, wordBreak: 'break-all' }}>{status.nodeFolder}</span></div>}
         <div className="row"><span className="k">Node kind</span><span className="v">{parlons ? `Parlons Node${acct && acct.version ? ' ' + acct.version : ''}` : 'classic Minima node'}</span></div>
         {parlons
           ? <div className="row"><span className="k">Parlons account</span><span className={`v ${acct && acct.ready ? 'ok' : acct && acct.error ? 'bad' : ''}`}>{acct && acct.error ? `error — ${acct.error}` : acct && acct.ready ? 'up' : 'starting…'}</span></div>

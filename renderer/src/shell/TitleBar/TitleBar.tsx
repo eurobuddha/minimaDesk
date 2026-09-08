@@ -68,7 +68,8 @@ function NodeChip({ onClick, open }: { onClick: () => void; open: boolean }) {
   const h = status && status.health;
   const parlons = status && status.kind === 'parlons';
   const acct = status && status.parlons;
-  const dot = state === 'running' ? 'on' : state === 'error' ? 'err' : state === 'stopped' ? '' : 'busy';
+  // contributing: the green dot means REACHABLE (an incoming peer), not merely running
+  const dot = state === 'running' ? (status && status.contribute ? ((h && (h.incoming || 0) > 0) ? 'on' : 'warn') : 'on') : state === 'error' ? 'err' : state === 'stopped' ? '' : 'busy';
   const label = state === 'running' ? 'Node' : state === 'error' ? 'Node error' : state === 'stopped' ? 'Node stopped' : state === 'stopping' ? 'Stopping…' : 'Starting…';
   return (
     <button type="button" className={`nodechip nodrag ${open ? 'open' : ''}`} onClick={onClick} title="Node status" aria-haspopup="dialog" aria-expanded={open}>
@@ -80,6 +81,12 @@ function NodeChip({ onClick, open }: { onClick: () => void; open: boolean }) {
           <span>{Number(h.block || 0).toLocaleString('en-US')}</span>
           <span className="sep" aria-hidden="true">·</span>
           <span className="dim">{h.connections || 0} peers</span>
+          {status && status.contribute && (
+            <>
+              <span className="sep" aria-hidden="true">·</span>
+              <span className={(h.incoming || 0) > 0 ? '' : 'dim'} title={(h.incoming || 0) > 0 ? 'reachable: incoming peers are connected' : 'no incoming peers yet'}>{h.incoming || 0} in</span>
+            </>
+          )}
           <span className="sep" aria-hidden="true">·</span>
           {parlons
             ? <span className={acct && acct.ready ? '' : 'dim'}>{acct && acct.error ? 'account error' : acct && acct.ready ? 'account up' : 'account starting'}</span>
