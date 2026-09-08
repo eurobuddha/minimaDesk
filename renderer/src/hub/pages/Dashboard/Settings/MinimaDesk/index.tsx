@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import SlideScreen from '../../../../components/UI/SlideScreen';
 import Button from '../../../../components/UI/Button';
 import BackButton from '../_BackButton';
-import type { ClassicContact, ClassicDapp, ExistingParlons, NodeSnapshot, Ports, UpdateStatus } from '../../../../../minima';
+import type { ExistingParlons, NodeSnapshot, Ports, UpdateStatus } from '../../../../../minima';
 import ClassicImports from './ClassicImports';
 
 type Props = { display: boolean; dismiss: () => void };
@@ -69,7 +69,7 @@ export function MinimaDesk({ display, dismiss }: Props) {
       setExisting(ex);
       if (ex && ex.exists && !existingChoice) {
         // an empty, never-paired 1.1 (the one 0.7.15-0.7.21 created without asking) → Replace is the sensible default
-        const empty = (!ex.devices) && (!ex.balance || (ex.balance.confirmed === '0' && ex.balance.unconfirmed === '0'));
+        const empty = (!ex.devices || ex.devices < 0) && (!ex.balance || (ex.balance.confirmed === '0' && ex.balance.unconfirmed === '0'));
         setExistingChoice(empty ? 'replace' : 'keep');
       }
     }).catch(() => {});
@@ -191,7 +191,7 @@ export function MinimaDesk({ display, dismiss }: Props) {
                     </label>
                     {existing && existing.exists && (
                       <div className="pt-2 border-t border-contrast4 border-opacity-40 flex flex-col gap-2">
-                        <div className="text-core-grey-80">A Parlons node already exists in <span className="font-mono text-xs break-all">{existing.folder}</span>{existing.devices ? `, ${existing.devices} paired device(s)` : ', no paired devices'}{existing.balance ? `, balance ${existing.balance.confirmed} Minima` : ''}{existing.address ? <>, wallet address <span className="font-mono text-xs break-all">{existing.address}</span></> : null}.</div>
+                        <div className="text-core-grey-80">A Parlons node already exists in <span className="font-mono text-xs break-all">{existing.folder}</span>{existing.devices === undefined || existing.devices < 0 ? '' : existing.devices ? `, ${existing.devices} paired device(s)` : ', no paired devices'}{existing.balance ? `, balance ${existing.balance.confirmed} Minima` : ''}{existing.address ? <>, wallet address <span className="font-mono text-xs break-all">{existing.address}</span></> : null}.</div>
                         <label className="flex items-start gap-3 cursor-pointer">
                           <input type="radio" name="existingChoice" className="mt-1" checked={existingChoice === 'replace'} onChange={() => setExistingChoice('replace')} />
                           <span><span className="text-white">Replace it</span> — it is set aside (renamed, never deleted) and the choice above builds a new one.</span>
@@ -218,7 +218,7 @@ export function MinimaDesk({ display, dismiss }: Props) {
                     {co.detail && <div className="break-words">{co.detail}</div>}
                     {co.error && <div className="text-red-400 break-words">{co.error}</div>}
                     {co.verified && <div className="text-core-grey-80 mt-1">{co.verified.phrase !== undefined ? <>Phrase {co.verified.phrase ? 'matches' : 'DIFFERS'} · keys {co.verified.addresses}/{co.verified.addressesOf} · </> : null}key uses {co.verified.keyuses} (wanted ≥ {co.verified.wanted}){co.verified.classicAddress ? <> · address <span className="font-mono text-xs break-all">{co.verified.classicAddress}</span></> : null}</div>}
-                    {co.stage !== 'done' && <button className="mt-2 text-xs text-core-grey-80 underline" onClick={() => minima.carryoverCancel()}>Cancel</button>}
+                    {(co.stage === 'preflight' || co.stage === 'waiting' || co.stage === 'verifying') && <button className="mt-2 text-xs text-core-grey-80 underline" onClick={() => minima.carryoverCancel()}>Cancel</button>}
                   </div>
                 )}
               </div>

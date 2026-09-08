@@ -60,8 +60,8 @@ function existingParlons() {
   const d = dataDir();
   const dir = path.join(d, PARLONS_FOLDER);
   if (!fs.existsSync(dir)) return { exists: false };
-  let devices = 0;
-  try { const j = JSON.parse(fs.readFileSync(path.join(d, "devices.json"), "utf8")); devices = Array.isArray(j) ? j.length : Object.keys(j.devices || j).length; } catch (e) {}
+  let devices = -1;   // -1 = unknown shape
+  try { const j = JSON.parse(fs.readFileSync(path.join(d, "devices.json"), "utf8")); const list = Array.isArray(j) ? j : Array.isArray(j.devices) ? j.devices : null; if (list) devices = list.length; } catch (e) {}
   let address = "";
   try { address = fs.readFileSync(path.join(d, "wallet-address.txt"), "utf8").trim(); } catch (e) {}
   let created = 0;
@@ -233,7 +233,15 @@ async function raiseRunning(kind, N) {
   // classic: only megammrsync sets the counters; the phrase is the classic node's OWN, read from itself
   set({ stage: "raising", detail: "Reading the classic node's own phrase to raise its key-use counters…" });
   const phrase = await readPhrase("classic");
-  await resync(phrase, N, "Raising the classic node's key-use counters to " + N + " by resyncing its wallet");
+  try {
+    await resync(phrase, N, "Raising the classic node's key-use counters to " + N + " by resyncing its wallet");
+  } catch (e) {
+    // the classic jar wipes its chain DBs and recreates the keys (already at N) BEFORE fetching the MegaMMR: a
+    // failed fetch leaves it waiting for a restart - restart it so it resyncs its chain; the raise stays pending
+    node.log("[app] carry-over: the classic resync failed (" + e.message + ") - restarting the classic node");
+    try { await node.restart(); } catch (e2) {}
+    throw e;
+  }
   await waitForSelfRestart("The classic node restarts itself after the resync…");
   await waitForVault(RPC_WAIT_MS);
   const k = await readKeys();
@@ -272,9 +280,9 @@ function start({ target, mode, existing, heapMb }) {
           leftSigned = !rec || k.max > rec.max;   // signing happened here since the last switch (or never recorded)
           recordUses(from, k.max);
         } catch (e) {
-          const rec = ledger()[from];
-          if (rec) { leftMax = rec.max; leftSigned = false; node.log("[app] carry-over: could not read the " + fromLabel + " node's keys (" + e.message + ") - using the ledger's " + rec.max); }
-          else if (from === "minima" && mode === "carry") throw e;
+          // fail CLOSED: without the counters of the node being left, the +100 rule cannot be applied - the
+          // running node stays up and nothing changes (a ledger value could hide unseen signatures)
+          if (sameWallet || mode === "carry") throw new Error("could not read the " + fromLabel + " node's key-use counters (" + e.message + ") - not switching; try again once it answers");
         }
       }
       if (from === "minima") {
