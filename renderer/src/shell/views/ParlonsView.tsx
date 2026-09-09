@@ -17,6 +17,9 @@ export default function ParlonsView({ active }: { active: boolean }) {
   const [st, setSt] = useState<ParlonsStatus | null>(null);
   const [url, setUrl] = useState('');
   const [loadedFor, setLoadedFor] = useState('');     // the node start the panel was loaded for (one key per start)
+  const [reloadToken, setReloadToken] = useState(0);
+  const [linkError, setLinkError] = useState('');
+  const [statusError, setStatusError] = useState('');
   const [switching, setSwitching] = useState('');
   const [msg, setMsg] = useState('');
   const ref = useRef<WebviewTag | null>(null);
@@ -26,34 +29,41 @@ export default function ParlonsView({ active }: { active: boolean }) {
   useEffect(() => {
     if (!active) return;
     let alive = true;
-    const pull = async () => { try { const s = await window.minima.parlonsStatus(); if (alive) setSt(s); } catch (e) {} };
+    const pull = async () => { try { const s = await window.minima.parlonsStatus(); if (alive) { setSt(s); setStatusError(''); } } catch (e) { if (alive) setStatusError('Could not check the account. Retrying…'); } };
     pull();
     const iv = setInterval(pull, 3000);
     return () => { alive = false; clearInterval(iv); };
-  }, [active, status && status.state, status && status.parlons && status.parlons.ready]);
+  }, [active, reloadToken, status && status.state, status && status.parlons && status.parlons.ready]);
 
   // One panel session per node start: key = panel port + the node's start time (from main, exact).
   const key = st && st.ready && status && status.startedTs ? `${st.panelPort}:${status.startedTs}` : '';
   useEffect(() => {
-    if (!active || !st || !st.ready || !key || key === loadedFor) return;
+    if (!active) return;
+    if (!st || !st.ready || st.error || statusError || !key) { setUrl(''); setLoadedFor(''); return; }
+    if (key === loadedFor) return;
     let alive = true;
     let tries = 0;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    setLinkError('');
     const get = async () => {
       try {
         const u = await window.minima.parlonsPanelUrl();
         if (!alive) return;
-        if (u) { setUrl(u); setLoadedFor(key); return; }
+        if (u) { setUrl(u); setLoadedFor(key); setLinkError(''); return; }
       } catch (e) {}
-      if (alive && tries++ < 20) setTimeout(get, 1500);   // the account writes the next ticket as soon as one is used
+      if (alive && tries++ < 20) retry = setTimeout(get, 1500);   // the account writes the next ticket as soon as one is used
+      else if (alive) setLinkError('Could not get a sign-in link. Reload to try again.');
     };
     get();
-    return () => { alive = false; };
-  }, [active, key, st && st.ready]);
+    return () => { alive = false; clearTimeout(retry); };
+  }, [active, key, st && st.ready, st && st.error, statusError, reloadToken]);
 
-  const reload = () => { setLoadedFor(''); setUrl(''); };
+  const reload = () => { setLoadedFor(''); setUrl(''); setLinkError(''); setReloadToken(n => n + 1); };
   const openExternal = async () => {
-    const ok = await window.minima.parlonsOpenExternal();
-    setMsg(ok ? 'Opened in your browser with a fresh one-time link.' : 'No sign-in link yet - the account is still starting.');
+    try {
+      const ok = await window.minima.parlonsOpenExternal();
+      setMsg(ok ? 'Opened in your browser with a fresh one-time link.' : 'No sign-in link yet - the account is still starting.');
+    } catch (e) { setMsg('Could not open the panel. Try again.'); }
     setTimeout(() => setMsg(''), 4000);
   };
   const { switchTab } = useShell();
@@ -70,18 +80,19 @@ export default function ParlonsView({ active }: { active: boolean }) {
       </div>
     );
   }
-  const ready = !!(st && st.ready && !st.error);
+  const ready = !!(st && st.ready && !st.error && !statusError);
+  const panelUrl = loadedFor === key ? url : '';
   return (
     <>
       {!ready && (
         <div className="parlons-strip">
-          <span>{st && st.error ? 'Account error' : 'Starting the account…'}{st && st.version ? ` · Parlons Node ${st.version}` : ''}</span>
+          <span>{statusError || (st && st.error ? 'Account error' : 'Starting the account…')}{st && st.version ? ` · Parlons Node ${st.version}` : ''}</span>
           <div className="grow" />
           <button className="btn" onClick={reload}>Reload</button>
         </div>
       )}
       {st && st.error && <div className="parlons-warn">{st.error}</div>}
-      {ready && url && (
+      {ready && (
         <div className="parlons-tools">
           <button className="btn" title="Open the panel in your browser with a fresh one-time link" onClick={openExternal}>Open in browser</button>
           <button className="btn" onClick={reload}>Reload</button>
@@ -89,13 +100,13 @@ export default function ParlonsView({ active }: { active: boolean }) {
         </div>
       )}
       <div className="parlons-body">
-        {!ready && <div className="parlons-wait">{st && st.error ? 'The account did not start - see Node logs.' : 'Waiting for the account to attach to the network…'}</div>}
-        {ready && !url && <div className="parlons-wait">Getting a sign-in link from the account…</div>}
-        {ready && url && (
+        {!ready && <div className="parlons-wait">{statusError || (st && st.error ? 'The account did not start - see Node logs.' : 'Waiting for the account to attach to the network…')}</div>}
+        {ready && !panelUrl && <div className="parlons-wait" role="status">{linkError || "Getting a sign-in link from the account…"}</div>}
+        {ready && panelUrl && (
           <webview
             key={loadedFor}
             ref={ref as any}
-            src={url}
+            src={panelUrl}
             partition="persist:parlons"
             className={active ? '' : 'inactive'}
             aria-hidden={!active}

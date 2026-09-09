@@ -83,6 +83,9 @@ jobs:
       - name: Verify RPC bridges
         run: npm run test:rpc
 
+      - name: Verify Parlons panel sessions
+        run: npm run test:parlons
+
       - name: Build renderer (Vite)
         run: npm run build
 
