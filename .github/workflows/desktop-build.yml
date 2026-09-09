@@ -80,6 +80,9 @@ jobs:
       - name: Install deps
         run: npm ci
 
+      - name: Verify RPC bridges
+        run: npm run test:rpc
+
       - name: Build renderer (Vite)
         run: npm run build
 

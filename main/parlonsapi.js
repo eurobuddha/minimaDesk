@@ -25,6 +25,7 @@ function request(method, urlPath, body, headers = {}) {
       headers: Object.assign({ Host: "127.0.0.1:" + port, Cookie: cookie }, data ? { "Content-Type": "application/json", "Content-Length": data.length } : {}, headers)
     }, (res) => {
       const chunks = [];
+      res.on("error", reject);
       res.on("data", (c) => chunks.push(c));
       res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks).toString("utf8") }));
     });
