@@ -1,7 +1,7 @@
 {
   "name": "minimadesk",
   "productName": "minimaDesk",
-  "version": "0.7.59",
+  "version": "0.7.60",
   "description": "A polished desktop MiniDapp platform \u2014 runs a full Minima classic node and opens installed MDS MiniDapps as tabs. MiniHub, in a party dress.",
   "author": "eurobuddha",
   "license": "MIT",
@@ -122,5 +122,5 @@
     "@silentbot1/nat-api": "^0.4.9",
     "jszip": "^3.10.1"
   },
-  "parlonsNode": "0.2.101"
+  "parlonsNode": "0.2.102"
 }
