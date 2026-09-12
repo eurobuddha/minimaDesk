@@ -85,6 +85,7 @@ export interface MinimaBridge {
   install(): Promise<RpcReply>;
   iconData(url: string): Promise<string>;
   healMaxima(): Promise<{ status: boolean; error?: string }>;
+  onParlonsIncoming(fn: () => void): () => void;
   parlonsStatus(): Promise<ParlonsStatus>;
   parlonsPanelUrl(): Promise<string>;
   parlonsOpenExternal(): Promise<boolean>;

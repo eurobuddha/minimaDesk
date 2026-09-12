@@ -7,7 +7,7 @@ const ts = require('typescript');
 const source = fs.readFileSync(process.env.PARLONS_VIEW_SOURCE || path.join(__dirname, '../renderer/src/shell/views/ParlonsView.tsx'), 'utf8');
 // Run the actual component with deterministic hook/IPC boundaries. JSX is a plain tree;
 // this checks effects and session lifecycle, not browser layout or Electron navigation policy.
-function fixture() {
+function fixture(active = true) {
   const slots = [], effects = [], intervals = new Map(), timers = new Map();
   let cursor = 0, dirty = true, tree, tick = 0, urlCalls = 0, failed = false;
   const status = {kind: 'parlons', state: 'running', startedTs: 100, parlons: {ready: true}};
@@ -23,7 +23,7 @@ function fixture() {
   });
   vm.runInContext(ts.transpileModule(source, {compilerOptions: {module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020}}).outputText, context);
   return {
-    async flush() { for (let i = 0; i < 30; i++) { if (dirty) { dirty = false; cursor = 0; tree = context.exports.default({active: true}); while (effects.length) effects.shift()(); } await Promise.resolve(); } },
+    async flush() { for (let i = 0; i < 30; i++) { if (dirty) { dirty = false; cursor = 0; tree = context.exports.default({active}); while (effects.length) effects.shift()(); } await Promise.resolve(); } },
     all(type) { const found = []; function walk(node) { if (!node || typeof node !== 'object') return; if (Array.isArray(node)) return node.forEach(walk); if (node.type === type) found.push(node); walk(node.props?.children); } walk(tree); return found; },
     poll(value) { failed = value; for (const fn of intervals.values()) fn(); }, get calls() { return urlCalls; },
   };
@@ -40,3 +40,5 @@ test('status failure is visible and recovery obtains a fresh link after unmounti
   assert.ok(f.all('div').some(n => String(n.props.children).includes('Could not check')));
   f.poll(false); await f.flush(); assert.equal(f.calls, 2); assert.match(f.all('webview')[0].props.src, /ticket\/2$/);
 });
+
+test("receiver loads before visiting the Parlons tab", async () => { const f = fixture(false); await f.flush(); assert.equal(f.calls, 1); assert.equal(f.all("webview").length, 1); });

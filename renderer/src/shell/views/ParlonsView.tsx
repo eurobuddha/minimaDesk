@@ -25,20 +25,18 @@ export default function ParlonsView({ active }: { active: boolean }) {
   const ref = useRef<WebviewTag | null>(null);
   const kind = (status && status.kind) || (ports && ports.kind) || 'parlons';
 
-  // Poll the account's status while the tab is shown (its readiness comes from the jar's own log lines).
+  // Poll the account's status even while another tab is shown (incoming calls) (its readiness comes from the jar's own log lines).
   useEffect(() => {
-    if (!active) return;
     let alive = true;
     const pull = async () => { try { const s = await window.minima.parlonsStatus(); if (alive) { setSt(s); setStatusError(''); } } catch (e) { if (alive) setStatusError('Could not check the account. Retrying…'); } };
     pull();
     const iv = setInterval(pull, 3000);
     return () => { alive = false; clearInterval(iv); };
-  }, [active, reloadToken, status && status.state, status && status.parlons && status.parlons.ready]);
+  }, [reloadToken, status && status.state, status && status.parlons && status.parlons.ready]);
 
   // One panel session per node start: key = panel port + the node's start time (from main, exact).
   const key = st && st.ready && status && status.startedTs ? `${st.panelPort}:${status.startedTs}` : '';
   useEffect(() => {
-    if (!active) return;
     if (!st || !st.ready || st.error || statusError || !key) { setUrl(''); setLoadedFor(''); return; }
     if (key === loadedFor) return;
     let alive = true;
@@ -56,7 +54,7 @@ export default function ParlonsView({ active }: { active: boolean }) {
     };
     get();
     return () => { alive = false; clearTimeout(retry); };
-  }, [active, key, st && st.ready, st && st.error, statusError, reloadToken]);
+  }, [key, st && st.ready, st && st.error, statusError, reloadToken]);
 
   const reload = () => { setLoadedFor(''); setUrl(''); setLinkError(''); setReloadToken(n => n + 1); };
   const openExternal = async () => {

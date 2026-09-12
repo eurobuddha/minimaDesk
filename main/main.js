@@ -35,6 +35,12 @@ let win = null;
 let quitting = false;                 // set once the graceful stop has run (before-quit, or a relaunch)
 const send = (ch, payload) => { if (win && !win.isDestroyed()) win.webContents.send(ch, payload); };
 
+require("./parlons-calls").install({
+  port: () => config.panelPort(),
+  window: () => win,
+  focusPanel: () => { if (win && !win.isDestroyed()) win.webContents.send("parlons:incoming"); }
+});
+
 // ---- window.open policy ----
 // MDS dapp URLs become tabs; http(s) goes to the OS browser; NOTHING else. In particular `file:` is never
 // handed to the OS from web content: a MiniDapp can write any file through the MDS file API and would
@@ -86,6 +92,9 @@ function createWindow() {
     }
   });
   win.webContents.setWindowOpenHandler(windowOpenHandler);
+  // On macOS the app/node already stays running after closing its window. Keep the call
+  // receiver alive too; explicit Quit still closes it through the existing graceful shutdown.
+  win.on("close", e => { if (process.platform === "darwin" && !quitting) { e.preventDefault(); win.hide(); } });
   win.on("close", () => { try { const b = win.getBounds(); config.save({ window: { w: b.width, h: b.height } }); } catch (e) {} });
   if (!app.isPackaged && process.env.MDESK_DEV_URL) win.loadURL(process.env.MDESK_DEV_URL);
   else win.loadFile(path.join(__dirname, "..", "renderer", "dist", "index.html"));
@@ -201,7 +210,7 @@ if (!gotLock) {
     createWindow();
     node.start().catch(() => {});
     updater.start();
-    app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+    app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); else if (win) { win.show(); win.focus(); } });
   });
 }
 

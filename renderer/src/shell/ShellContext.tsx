@@ -324,6 +324,8 @@ export const ShellProvider: React.FC<React.PropsWithChildren<{ initialPorts: Por
   }, []);
 
   // The hub reaches the shell through hub/shell-bridge.ts (typed, no React context needed there).
+  useEffect(() => minima.onParlonsIncoming(() => openView('parlons')), [minima, openView]);
+
   const latest = useRef({ openDapp, openView });
   latest.current = { openDapp, openView };
   useEffect(() => {

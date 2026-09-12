@@ -1,7 +1,7 @@
 {
   "name": "minimadesk",
   "productName": "minimaDesk",
-  "version": "0.7.63",
+  "version": "0.7.64",
   "description": "A polished desktop MiniDapp platform \u2014 runs a full Minima classic node and opens installed MDS MiniDapps as tabs. MiniHub, in a party dress.",
   "author": "eurobuddha",
   "license": "MIT",
@@ -17,7 +17,7 @@
     "dist:linux": "npm run build && electron-builder --linux",
     "fetch:parlons": "bash scripts/fetch-parlons-node-jar.sh",
     "test:rpc": "node --test scripts/rpc-test.cjs",
-    "test:parlons": "node --test scripts/parlons-view-test.cjs"
+    "test:parlons": "node --test scripts/parlons-view-test.cjs scripts/parlons-calls-test.cjs"
   },
   "devDependencies": {
     "@react-spring/web": "^9.7.3",
@@ -86,7 +86,11 @@
             "arm64"
           ]
         }
-      ]
+      ],
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Parlons uses your microphone for voice and video calls.",
+        "NSCameraUsageDescription": "Parlons uses your camera for video calls and scanning QR codes."
+      }
     },
     "win": {
       "icon": "build/icon.png",
@@ -122,5 +126,5 @@
     "@silentbot1/nat-api": "^0.4.9",
     "jszip": "^3.10.1"
   },
-  "parlonsNode": "0.2.106"
+  "parlonsNode": "0.2.107"
 }

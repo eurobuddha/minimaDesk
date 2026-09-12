@@ -39,6 +39,7 @@ contextBridge.exposeInMainWorld("minima", {
   healMaxima: () => invoke("maxima:heal"),
 
   // the Parlons Node kind: account status, the one-time panel link for the Parlons tab, open in browser, switch kinds
+  onParlonsIncoming: (fn) => { const h = () => fn(); ipcRenderer.on("parlons:incoming", h); return () => ipcRenderer.removeListener("parlons:incoming", h); },
   parlonsStatus: () => invoke("parlons:status"),
   parlonsPanelUrl: () => invoke("parlons:panelUrl"),
   parlonsOpenExternal: () => invoke("parlons:openExternal"),
