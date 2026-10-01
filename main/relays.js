@@ -11,7 +11,6 @@ const KNOWN_RELAYS = [
   { host: "78.141.237.9:9501",   label: "openproject" },
   { host: "192.248.151.55:9501", label: "megammr" },
   { host: "45.77.57.24:9501",    label: "vigilance" },
-  { host: "31.125.188.214:8001", label: "Pi (home)" },
 ];
 const DEFAULT_RELAY = KNOWN_RELAYS[0].host;
 

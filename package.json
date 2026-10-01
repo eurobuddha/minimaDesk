@@ -1,7 +1,7 @@
 {
   "name": "minimadesk",
   "productName": "minimaDesk",
-  "version": "0.7.69",
+  "version": "0.7.70",
   "description": "A polished desktop MiniDapp platform \u2014 runs a full Minima classic node and opens installed MDS MiniDapps as tabs. MiniHub, in a party dress.",
   "author": "eurobuddha",
   "license": "MIT",
@@ -17,7 +17,8 @@
     "dist:linux": "npm run build && electron-builder --linux",
     "fetch:parlons": "bash scripts/fetch-parlons-node-jar.sh",
     "test:rpc": "node --test scripts/rpc-test.cjs",
-    "test:parlons": "node --test scripts/parlons-view-test.cjs scripts/parlons-calls-test.cjs"
+    "test:parlons": "node --test scripts/parlons-view-test.cjs scripts/parlons-calls-test.cjs",
+    "test:retired-host": "node --test scripts/retired-host-test.cjs"
   },
   "devDependencies": {
     "@react-spring/web": "^9.7.3",

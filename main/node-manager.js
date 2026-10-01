@@ -36,7 +36,11 @@ const LOG_MAX_LINES = 800;
 // reaches unchanged on basePort+4 (the admin RPC ignores the Basic auth header; it is loopback-only).
 const PARLONS_REFUSED = new Set(["rpc", "rpcenable", "rpcpassword", "rpccrlf", "seed", "anyseed", "dbpassword",
   "clean", "genesis", "test", "solo", "testchainlength", "daemon", "noshutdownhook", "jnlp", "help"]);
-const PARLONS_DEFAULT_ROOTNODE = "31.125.188.214:9001";   // the fork ships an empty node list: give it one peer
+// A NAME, never a bare IP. This was 31.125.188.214 — the Pi, which was the ORIGINAL eurobuddha.com and has
+// since been moved off every duty it held (owner, 2026-10-01). The fork ships an empty node list, so this is
+// the one peer a fresh install has: when it points at a retired address the node simply never connects, and
+// nothing on screen distinguishes that from a broken install. A name lets the host move without a release.
+const PARLONS_DEFAULT_ROOTNODE = "eurobuddha.com:9001";
 const HEALTH_EVERY_MS = 8_000;
 const NET_RESTART_COOLDOWN_MS = 10 * 60_000;
 const MAXIMA_REFRESH_MS = 15 * 60 * 1000;           // periodic MLS refresh so cached contact addresses don't go stale
