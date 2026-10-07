@@ -222,7 +222,7 @@ class NodeManager extends EventEmitter {
    * disk — no data folder, no conf file — and reports which secret flags the conf file would carry.
    */
   buildArgs(cfg = config.load(), { dryRun = false } = {}) {
-    const dataDir = cfg.dataFolder || config.defaultDataFolder();
+    const dataDir = cfg.dataFolder || config.defaultDataFolder({ migrate: !dryRun });
     const basePort = parseInt(cfg.basePort, 10) || 20001;
     const { argv: paramArgs, conf: confParams } = config.effectiveParams(cfg);
     if (!dryRun) fs.mkdirSync(dataDir, { recursive: true });

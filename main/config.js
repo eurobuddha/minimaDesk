@@ -39,22 +39,25 @@ const DEFAULTS = {
 
 function configPath() { return path.join(app.getPath("userData"), "config.json"); }
 
-// The node's data folder MUST contain no spaces. MiniDapps install other dapps with
-// `mds action:install file:<path>` (unquoted), and the node's command parser splits on
-// whitespace — so a space in the path (macOS "~/Library/Application Support/…") makes every
-// dapp-initiated install fail with "Invalid parameters for mds". We keep data under a space-free
-// home directory and migrate any existing (space-containing) data folder there once, instantly
-// (same volume rename preserves the synced chain + wallet + installed dapps).
-function defaultDataFolder() {
+// Prefer the established home folder. Resolve without moving files during status/preview reads;
+// only node startup (after checking for an existing process) may migrate an older location.
+// If a rename fails, keep the source wallet instead of silently creating a replacement.
+function defaultDataFolder({ migrate = false } = {}) {
   const legacy = path.join(app.getPath("userData"), "minima-data");
-  let base = app.getPath("home");
-  // Guard the rare case of a space in the home path too; fall back to a temp-based space-free dir.
-  if (/\s/.test(base)) { try { base = require("os").tmpdir(); } catch (e) {} }
-  const target = path.join(base, ".minimadesk-data");
-  try {
-    if (fs.existsSync(legacy) && !fs.existsSync(target)) { fs.renameSync(legacy, target); }
-  } catch (e) { /* migration failed — node will fresh-sync under target */ }
-  return target;
+  const home = app.getPath("home");
+  const target = path.join(home, ".minimadesk-data");
+  if (fs.existsSync(target)) return target;
+  let source = legacy;
+  // Earlier versions put homes containing spaces in OS temporary storage. Recognise that
+  // existing wallet, but never create a NEW wallet there. Java argv already quotes paths.
+  if (/\s/.test(home)) {
+    const temporary = path.join(require("os").tmpdir(), ".minimadesk-data");
+    if (fs.existsSync(temporary)) source = temporary;
+  }
+  if (!fs.existsSync(source)) return target;
+  if (!migrate) return source;
+  try { fs.renameSync(source, target); return target; }
+  catch (e) { return source; }
 }
 
 function load() {

@@ -83,6 +83,9 @@ jobs:
       - name: Verify RPC bridges
         run: npm run test:rpc
 
+      - name: Test wallet data-folder recovery
+        run: npm run test:data-folder
+
       - name: Verify Parlons panel sessions
         run: npm run test:parlons
 

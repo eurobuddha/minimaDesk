@@ -31,7 +31,7 @@ newest_zip() {
 STORE=$(newest_zip "$APPSTORE_DIR")
 TERMINAL=$(newest_zip "$TERMINAL_DIR")
 
-rm -f "$OUT"/*.mds.zip
+# Preserve historical bundled archives; manifest.json selects the active versions.
 cp "$APPSTORE_DIR/$(node -pe 'JSON.parse(process.argv[1]).file' "$STORE")" "$OUT/"
 cp "$TERMINAL_DIR/$(node -pe 'JSON.parse(process.argv[1]).file' "$TERMINAL")" "$OUT/"
 
