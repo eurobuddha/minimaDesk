@@ -8,10 +8,19 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Both artifacts are keyed to package.json's version. Picking the .app with `head -1` while picking the DMG
+# with `sort -V | tail -1` meant a leftover dist/mac/ from an older build could be the one verified while a
+# NEWLY built DMG got shipped — a release gate signing off on a bundle that is not in the thing you upload.
+VER="$(node -p "require('./package.json').version")"
+DMG="dist/minimaDesk-$VER-arm64.dmg"
+[ -f "$DMG" ] || { echo "no $DMG — build first (npm run dist:mac:signed)"; exit 1; }
 APP=$(ls -d dist/mac*/*.app 2>/dev/null | head -1)
-DMG=$(ls dist/*.dmg 2>/dev/null | sort -V | tail -1)
 [ -n "$APP" ] || { echo "no .app under dist/ — build first"; exit 1; }
-[ -n "$DMG" ] || { echo "no .dmg under dist/ — build first"; exit 1; }
+APPVER="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist" 2>/dev/null || echo '?')"
+[ "$APPVER" = "$VER" ] || {
+  echo "FAIL: $APP is version $APPVER but package.json is $VER — a stale bundle from an earlier build."
+  echo "      Remove the old dist/mac*/ directories and rebuild, or you will verify one app and ship another."
+  exit 1; }
 
 echo "== app: $APP"
 INFO=$(codesign -dv --verbose=2 "$APP" 2>&1 || true)
@@ -26,6 +35,9 @@ echo "$ASSESS" | grep -q 'Notarized Developer ID' || { echo "FAIL: Gatekeeper do
 echo "ok: spctl accepts the app (Notarized Developer ID)"
 
 echo "== dmg: $DMG"
+DINFO=$(codesign -dv --verbose=2 "$DMG" 2>&1 || true)
+echo "$DINFO" | grep -q 'Authority=Developer ID Application' || { echo "FAIL: dmg container not signed with Developer ID Application"; exit 1; }
+codesign --verify --strict "$DMG" && echo "ok: dmg container signature verified"
 xcrun stapler validate "$DMG" > /dev/null && echo "ok: notarization ticket stapled to the dmg" \
   || { echo "FAIL: no ticket stapled to the dmg — run scripts/notarize-dmg.sh"; exit 1; }
 DASSESS=$(spctl --assess --type open --context context:primary-signature --verbose=2 "$DMG" 2>&1 || true)

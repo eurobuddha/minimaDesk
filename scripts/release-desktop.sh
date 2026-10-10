@@ -14,7 +14,7 @@ VER="${1:?version, e.g. 0.7.19}"; NOTES="${2:-minimaDesk $VER}"
 REPO="eurobuddha/minimaDesk"
 DMG="dist/minimaDesk-$VER-arm64.dmg"
 [ -f "$DMG" ] || { echo "no $DMG - build it first: npm run dist:mac:signed"; exit 1; }
-xcrun stapler validate "$DMG" > /dev/null || { echo "$DMG is not notarized+stapled - refusing"; exit 1; }
+scripts/verify-mac.sh || { echo "$DMG failed signature and notarization verification"; exit 1; }
 [ "$(node -p "require('./package.json').version")" = "$VER" ] || { echo "package.json is not $VER"; exit 1; }
 [ -z "$(git status --porcelain -- package.json main renderer/src scripts README.md .github)" ] || { echo "uncommitted changes - commit first"; exit 1; }
 echo "== tag v$VER"
@@ -47,7 +47,7 @@ if [ -d "$STORE" ]; then
   echo "== PandaApps catalog rows (MinimaClassic Desktop mac / win / linux)"
   ( cd "$STORE" && for pkg in com.eurobuddha.minimaclassic.mac com.eurobuddha.minimaclassic.win com.eurobuddha.minimaclassic.linux; do
       python3 scripts/publish-app.py "$pkg" "$VER"; done
-    git commit -qam "MinimaClassic Desktop $VER" && git push -q origin HEAD && echo "catalog rows pushed" )
+    python3 -B check.py && git add apks.json && git commit -qm "MinimaClassic Desktop $VER" && git push -q origin HEAD && echo "catalog rows pushed" )
 else
   echo "!! $STORE not found - update the three MinimaClassic Desktop rows by hand (scripts/publish-app.py)"
 fi
