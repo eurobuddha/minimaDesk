@@ -178,6 +178,11 @@ class NodeManager extends EventEmitter {
       ? path.join(process.resourcesPath, "parlons-node.jar")
       : path.join(__dirname, "..", "resources", "parlons-node.jar");
   }
+  keetsSidecarPath() {
+    return app.isPackaged
+      ? path.join(process.resourcesPath, "keets-sidecar", "index.js")
+      : path.join(__dirname, "..", "resources", "keets-sidecar", "index.js");
+  }
   /** The node's data folder (the Parlons account keeps account.txt, invite.txt, panel-ticket.txt beside it). */
   dataDir() { const cfg = config.load(); return cfg.dataFolder || config.defaultDataFolder(); }
   /** The account's loopback web panel port (Parlons kind). */
@@ -269,6 +274,15 @@ class NodeManager extends EventEmitter {
       const key = tok.replace(/^-+/, "").toLowerCase();
       if (tok.startsWith("-") && PARLONS_REFUSED.has(key)) continue;
       flags.push(/[\s"'\\]/.test(tok) ? q(tok) : tok);
+    }
+    // KeetChat interop (node 0.2.124+): the embedded node runs the keets
+    // transport and spawns the sidecar with OUR binary as the Node runtime
+    // (the jar sets ELECTRON_RUN_AS_NODE on the child itself). The account's
+    // panel then has keets contacts/chat; nothing else in this app changes.
+    // Guarded on the bundled sidecar so a dev checkout without it still boots.
+    const keetsSidecar = this.keetsSidecarPath();
+    if (fs.existsSync(keetsSidecar)) {
+      flags.push("-keets", "-keetssidecar", q(keetsSidecar), "-keetsnode", q(process.execPath));
     }
     const confFlags = Object.keys(confParams || {}).filter((k) => !PARLONS_REFUSED.has(String(k).toLowerCase()));
     const args = [

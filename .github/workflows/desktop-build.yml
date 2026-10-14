@@ -77,6 +77,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: bash scripts/fetch-parlons-node-jar.sh
 
+      - name: Install keets sidecar deps
+        shell: bash
+        run: bash scripts/fetch-keets-sidecar.sh
+
       - name: Install deps
         run: npm ci
 
