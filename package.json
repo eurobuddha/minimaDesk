@@ -1,7 +1,7 @@
 {
   "name": "minimadesk",
   "productName": "minimaDesk",
-  "version": "0.7.76",
+  "version": "0.7.77",
   "description": "A polished desktop MiniDapp platform \u2014 runs a full Minima classic node and opens installed MDS MiniDapps as tabs. MiniHub, in a party dress.",
   "author": "eurobuddha",
   "license": "MIT",
@@ -68,7 +68,11 @@
       {
         "from": "resources/keets-sidecar",
         "to": "keets-sidecar",
-        "filter": ["**/*", "!**/prebuilds/android*/**", "!**/prebuilds/ios*/**"]
+        "filter": [
+          "**/*",
+          "!**/prebuilds/android*/**",
+          "!**/prebuilds/ios*/**"
+        ]
       },
       {
         "from": "resources/jre",
@@ -135,6 +139,6 @@
     "@silentbot1/nat-api": "^0.4.9",
     "jszip": "^3.10.1"
   },
-  "parlonsNode": "0.2.124",
-  "parlonsNodeSha256": "bfc6c40fb38f59ee381ac0cc2019abc241cbe3b0df3d0de6259e04e3784fbeb0"
+  "parlonsNode": "0.2.125",
+  "parlonsNodeSha256": "37c9de5c1e49fd3c9d700a9d1e6930a0bfadd4da1a7f4f63303ca455ab5a87d6"
 }
