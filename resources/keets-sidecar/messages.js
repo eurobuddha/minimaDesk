@@ -6,6 +6,12 @@
 // nodes; the recipient fetches on its next start and every POLL thereafter, proving
 // ownership simply by dialing the mailbox with its own Noise key.
 //
+// 1.2.5 — instant store-and-forward: every recipient has a PRIMARY mailbox (chosen
+// from its pubkey, so sender and recipient agree without talking). Senders store
+// there first; the recipient keeps one live subscription to it and the mailbox pushes
+// each stored message the moment it lands. Polling (now 45 s, all mailboxes) remains
+// the fallback for old mailboxes, old senders and dropped subscriptions.
+//
 // Inbox = one JSON file per message under <keetsdir>/inbox; apps read/ack via the API.
 
 const wire = require('./wire')
@@ -14,13 +20,29 @@ const IS_BARE = typeof Bare !== 'undefined'
 const fs = IS_BARE ? require('bare-fs') : require('fs')
 const path = IS_BARE ? require('bare-path') : require('path')
 
+const POLL_SUBSCRIBED = 10 * 60 * 1000 // push is live: the poll only catches mail parked at non-primary mailboxes
+const CLOSE_GRACE = 2000 // ms to let a final frame flush before destroy
 const DIAL_TIMEOUT = 15000
-const POLL = 5 * 60 * 1000
+const POLL = 45 * 1000
+const SUB_RETRY_MIN = 5000
+const DIRECT_GRACE = 1500            // how long a direct dial gets before the mailbox is also tried
+const DIAL_FAIL_MEMORY = 10 * 60 * 1000  // a peer that failed to dial recently goes mailbox-first (0 grace)
+const SUB_RETRY_MAX = 60000
+
+/** The mailbox a recipient and its senders both pick first: stable across nodes
+ *  because it depends only on the recipient key and the (sorted) mailbox list. */
+function primaryMailbox (pkhex, mailboxes) {
+  if (!mailboxes.length) return null
+  const sorted = [...mailboxes].map(m => m.replace(/^0x/i, '').toLowerCase()).sort()
+  const n = parseInt(pkhex.replace(/^0x/i, '').slice(0, 8), 16) >>> 0
+  return sorted[n % sorted.length]
+}
 
 function hex (b) { return b.toString('hex') }
 
 module.exports = function createMessages ({ keetsdir, dht, keyPair, mailboxes }) {
   const inboxdir = path.join(keetsdir, 'inbox')
+  const dialFailed = new Map()   // peer pk -> last failed direct dial (ms)
   fs.mkdirSync(inboxdir, { recursive: true })
 
   function saveInbox (msg) {
@@ -36,7 +58,7 @@ module.exports = function createMessages ({ keetsdir, dht, keyPair, mailboxes })
     return new Promise((resolve, reject) => {
       const conn = dht.connect(Buffer.from(pkhex.replace(/^0x/i, ''), 'hex'))
       const timer = setTimeout(() => { conn.destroy(); reject(new Error('dial timeout ' + pkhex)) }, DIAL_TIMEOUT)
-      conn.on('error', (e) => { clearTimeout(timer); reject(e) })
+      conn.on('error', (e) => { clearTimeout(timer); conn.destroy(); reject(e) })
       conn.once('open', () => {
         conn.write(Buffer.concat([wire.MAGIC, Buffer.from([wire.SVC_MSG])]))
         const feed = wire.frameReader()
@@ -68,7 +90,13 @@ module.exports = function createMessages ({ keetsdir, dht, keyPair, mailboxes })
           conn,
           send: (obj) => wire.writeFrame(conn, obj),
           next: () => queued.length ? Promise.resolve(queued.shift()) : new Promise((r) => waiting.push(r)),
-          close: () => conn.end()
+          // end() alone half-closes: when the far side never ends too, the stream and its UDP
+          // socket stayed open forever (~160 leaked sockets/hour from mail polls, measured
+          // 2026-10-24 on the Fold and desktop). Say goodbye, then always destroy.
+          close: () => {
+            try { conn.end() } catch (e) {}
+            setTimeout(() => conn.destroy(), CLOSE_GRACE).unref?.()
+          }
         }
       })
     })
@@ -93,10 +121,15 @@ module.exports = function createMessages ({ keetsdir, dht, keyPair, mailboxes })
   }
 
   async function sendViaMailbox (tohex, payload) {
-    const sealed = wire.seal(keyPair, Buffer.from(tohex.replace(/^0x/i, ''), 'hex'), payload)
+    const to = tohex.replace(/^0x/i, '').toLowerCase()
+    const sealed = wire.seal(keyPair, Buffer.from(to, 'hex'), payload)
     let lasterr = new Error('no mailboxes configured')
-    // random order spreads load across the mailbox fleet
-    for (const mb of [...mailboxes].sort(() => Math.random() - 0.5)) {
+    // the recipient's primary first (it is subscribed there - instant push), then the
+    // rest in random order so load still spreads when the primary is unreachable
+    const primary = primaryMailbox(to, mailboxes)
+    const order = [...mailboxes].filter(m => m.replace(/^0x/i, '').toLowerCase() !== primary).sort(() => Math.random() - 0.5)
+    if (primary) order.unshift(primary)
+    for (const mb of order) {
       try {
         const s = await dialService(mb)
         try {
@@ -109,6 +142,14 @@ module.exports = function createMessages ({ keetsdir, dht, keyPair, mailboxes })
     }
     throw lasterr
   }
+
+  // suspend/resume (Bare app suspension): no mailbox timer, no live subscription while
+  // suspended; mail keeps waiting in the mailbox and is fetched on resume.
+  let suspended = false
+  let pollTimer = null
+  let liveStream = null
+  let subLive = false
+  let wakeSub = null
 
   return {
     // inbound KTS1/0x01 connection on the main server (magic already consumed)
@@ -139,15 +180,32 @@ module.exports = function createMessages ({ keetsdir, dht, keyPair, mailboxes })
       conn.on('error', () => {})
     },
 
-    // send to a keets pubkey: direct if online, else sealed to a mailbox
+    // send to a keets pubkey: direct if online, else sealed to a mailbox.
+    // 1.2.6: never wait on a dial that is going to fail. The direct dial races the
+    // mailbox: after DIRECT_GRACE (0 for a peer whose last dial failed recently) the
+    // message is ALSO stored at the recipient's primary mailbox, which pushes it to a
+    // subscribed recipient at once. Both apps dedupe by message id, so a message that
+    // arrives twice is stored once. `delivered` reports whichever path completed first.
     async send (tohex, payload) {
       if (payload.length > wire.MAX_PAYLOAD) throw new Error('payload over ' + wire.MAX_PAYLOAD + ' bytes — use media for big content')
+      const to = tohex.replace(/^0x/i, '').toLowerCase()
+      const recentFail = (dialFailed.get(to) || 0) > Date.now() - DIAL_FAIL_MEMORY
+      const direct = sendDirect(to, payload).then(
+        () => { dialFailed.delete(to); return { delivered: 'direct' } },
+        (e) => { dialFailed.set(to, Date.now()); throw e })
+      const grace = recentFail ? 0 : DIRECT_GRACE
+      let viaMailbox = null
+      const mailbox = new Promise((resolve, reject) => {
+        const t = setTimeout(() => {
+          viaMailbox = sendViaMailbox(to, payload).then((mb) => ({ delivered: 'mailbox', mailbox: mb }))
+          viaMailbox.then(resolve, reject)
+        }, grace)
+        direct.then(() => { if (!viaMailbox) clearTimeout(t) }, () => {})
+      })
       try {
-        await sendDirect(tohex, payload)
-        return { delivered: 'direct' }
+        return await Promise.any([direct, mailbox])
       } catch (e) {
-        const mb = await sendViaMailbox(tohex, payload)
-        return { delivered: 'mailbox', mailbox: mb }
+        throw (e && e.errors && e.errors[e.errors.length - 1]) || e
       }
     },
 
@@ -195,13 +253,85 @@ module.exports = function createMessages ({ keetsdir, dht, keyPair, mailboxes })
       fs.unlinkSync(path.join(inboxdir, id + '.json'))
     },
 
+    /** Live subscription to our primary mailbox: stored messages arrive as pushes.
+     *  Reconnects with backoff; an old mailbox (no sub:true in done) is retried slowly
+     *  while the poll covers it. Never throws. */
+    async subscribeLoop () {
+      const me = hex(keyPair.publicKey)
+      const primary = primaryMailbox(me, mailboxes)
+      if (!primary) return
+      let wait = SUB_RETRY_MIN
+      let announced = false
+      while (true) {
+        try {
+          if (suspended) await new Promise(r => { wakeSub = r })
+          const s = await dialService(primary)
+          liveStream = s
+          try {
+            s.send({ t: 'fetch', pk: me, sub: true })
+            const ch = await s.next()
+            if (!ch || ch.t !== 'challenge') throw new Error('no challenge from mailbox')
+            s.send({ t: 'proof', sig: wire.signFetch(keyPair, ch.nonce) })
+            let live = false
+            while (true) {
+              const f = await s.next()
+              if (!f) break                                   // connection closed
+              if (f.t === 'done') {
+                if (!f.sub) throw new Error('mailbox has no push support')
+                live = true; subLive = true; wait = SUB_RETRY_MIN
+                if (!announced) { announced = true; console.log('keets mail: subscribed to mailbox ' + primary + ' (push)') }
+                continue
+              }
+              if (f.t !== 'stored') continue
+              try {
+                const sealed = Buffer.from(f.sealed, 'base64')
+                const m = wire.unseal(keyPair, sealed)
+                const id = hex(wire.sha256(sealed).slice(0, 16))
+                saveInbox({ id, from: m.from, ts: m.ts, payload: m.payload.toString('base64'), via: live ? 'mailbox-push' : 'mailbox', received: Date.now() })
+              } catch (e) { console.log('keets mail: dropped bad sealed msg: ' + e.message) }
+              wire.writeFrame(s.conn, { t: 'ack', id: f.id })
+            }
+          } finally { liveStream = null; subLive = false; s.close() }
+        } catch (e) { /* unreachable / old mailbox / dropped - back off and retry */ }
+        if (suspended) continue                                // resume restarts at once
+        await new Promise(r => setTimeout(r, wait))
+        wait = Math.min(SUB_RETRY_MAX, wait * 2)
+      }
+    },
+
     start () {
       const poll = () => this.fetchMail().then(
         (n) => { if (n) console.log('keets mail: fetched ' + n + ' stored message(s)') },
         () => {}
       )
-      setTimeout(poll, 10000) // after the swarm is up
-      setInterval(poll, POLL)
-    }
+      // Self-scheduling: every 45 s while the push subscription is down, every 10 min while it is live.
+      const loop = () => {
+        pollTimer = null
+        if (suspended) return
+        poll()
+        pollTimer = setTimeout(loop, subLive ? POLL_SUBSCRIBED : POLL)
+      }
+      this._loop = loop
+      this._poll = poll
+      pollTimer = setTimeout(loop, 10000) // after the swarm is up
+      setTimeout(() => this.subscribeLoop(), 12000)
+    },
+
+    suspend () {
+      if (suspended) return
+      suspended = true
+      if (pollTimer) { clearTimeout(pollTimer); pollTimer = null }
+      if (liveStream) liveStream.close()
+    },
+
+    resume () {
+      if (!suspended) return
+      suspended = false
+      if (this._loop && !pollTimer) this._loop()     // fetch at once, then follow the cadence
+      if (wakeSub) { const w = wakeSub; wakeSub = null; w() }
+    },
+
+    isSuspended () { return suspended }
   }
 }
+module.exports.primaryMailbox = primaryMailbox
