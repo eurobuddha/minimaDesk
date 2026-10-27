@@ -38,7 +38,8 @@ const PARLONS_REFUSED = new Set(["rpc", "rpcenable", "rpcpassword", "rpccrlf", "
   "clean", "genesis", "test", "solo", "testchainlength", "daemon", "noshutdownhook", "jnlp", "help"]);
 // Whether the pinned Parlons Node embeds the keets Minima line. 0.2.124-0.2.141 did, but that line had NO
 // MiniDapp System (no `mds` command: this app listed and provisioned nothing, owner report 2026-10-27), and
-// 0.2.123 had MDS but refused -keets. 0.2.142 has both (minima-core mds-keets). Moves with package.json
+// 0.2.123 had MDS but refused -keets. 0.2.142+ has both (minima-core mds-keets; 0.2.143 adds the signed
+// dynamic keets mailbox list). Moves with package.json
 // "parlonsNode": a pin back to a jar without keets must set this false again.
 const PARLONS_KEETS = true;
 // A NAME, never a bare IP. This was 31.125.188.214 — the Pi, which was the ORIGINAL eurobuddha.com and has
