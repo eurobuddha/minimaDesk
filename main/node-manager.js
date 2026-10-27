@@ -36,11 +36,11 @@ const LOG_MAX_LINES = 800;
 // reaches unchanged on basePort+4 (the admin RPC ignores the Basic auth header; it is loopback-only).
 const PARLONS_REFUSED = new Set(["rpc", "rpcenable", "rpcpassword", "rpccrlf", "seed", "anyseed", "dbpassword",
   "clean", "genesis", "test", "solo", "testchainlength", "daemon", "noshutdownhook", "jnlp", "help"]);
-// Whether the pinned Parlons Node embeds the keets Minima line. 0.2.124-0.2.141 do, but that line has NO
-// MiniDapp System (no `mds` command, so this app lists and provisions nothing - owner report 2026-10-27).
-// The pin is back on 0.2.123 (MDS, core 1.1.2.4), which REFUSES -keets at boot. Moves with package.json
-// "parlonsNode": set true again only for a jar that has both MDS and keets.
-const PARLONS_KEETS = false;
+// Whether the pinned Parlons Node embeds the keets Minima line. 0.2.124-0.2.141 did, but that line had NO
+// MiniDapp System (no `mds` command: this app listed and provisioned nothing, owner report 2026-10-27), and
+// 0.2.123 had MDS but refused -keets. 0.2.142 has both (minima-core mds-keets). Moves with package.json
+// "parlonsNode": a pin back to a jar without keets must set this false again.
+const PARLONS_KEETS = true;
 // A NAME, never a bare IP. This was 31.125.188.214 — the Pi, which was the ORIGINAL eurobuddha.com and has
 // since been moved off every duty it held (owner, 2026-10-01). The fork ships an empty node list, so this is
 // the one peer a fresh install has: when it points at a retired address the node simply never connects, and
