@@ -36,6 +36,11 @@ const LOG_MAX_LINES = 800;
 // reaches unchanged on basePort+4 (the admin RPC ignores the Basic auth header; it is loopback-only).
 const PARLONS_REFUSED = new Set(["rpc", "rpcenable", "rpcpassword", "rpccrlf", "seed", "anyseed", "dbpassword",
   "clean", "genesis", "test", "solo", "testchainlength", "daemon", "noshutdownhook", "jnlp", "help"]);
+// Whether the pinned Parlons Node embeds the keets Minima line. 0.2.124-0.2.141 do, but that line has NO
+// MiniDapp System (no `mds` command, so this app lists and provisions nothing - owner report 2026-10-27).
+// The pin is back on 0.2.123 (MDS, core 1.1.2.4), which REFUSES -keets at boot. Moves with package.json
+// "parlonsNode": set true again only for a jar that has both MDS and keets.
+const PARLONS_KEETS = false;
 // A NAME, never a bare IP. This was 31.125.188.214 — the Pi, which was the ORIGINAL eurobuddha.com and has
 // since been moved off every duty it held (owner, 2026-10-01). The fork ships an empty node list, so this is
 // the one peer a fresh install has: when it points at a retired address the node simply never connects, and
@@ -281,7 +286,7 @@ class NodeManager extends EventEmitter {
     // panel then has keets contacts/chat; nothing else in this app changes.
     // Guarded on the bundled sidecar so a dev checkout without it still boots.
     const keetsSidecar = this.keetsSidecarPath();
-    if (fs.existsSync(keetsSidecar)) {
+    if (PARLONS_KEETS && fs.existsSync(keetsSidecar)) {
       flags.push("-keets", "-keetssidecar", q(keetsSidecar), "-keetsnode", q(process.execPath));
     }
     const confFlags = Object.keys(confParams || {}).filter((k) => !PARLONS_REFUSED.has(String(k).toLowerCase()));

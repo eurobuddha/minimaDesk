@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-function builder(sidecarExists) {
+function builder(sidecarExists, keetsJar = true) {
   const source = fs.readFileSync(path.join(__dirname, '../main/node-manager.js'), 'utf8');
   const start = source.indexOf('  buildParlonsArgs(');
   const end = source.indexOf('\n  start()', start);
@@ -17,6 +17,7 @@ function builder(sidecarExists) {
     process: { execPath: '/fake/Electron' },
     tokenizeArgs: () => [],
     PARLONS_REFUSED: new Set(),
+    PARLONS_KEETS: keetsJar,
     PARLONS_DEFAULT_ROOTNODE: 'fake:9001',
   });
   node.parlonsJarPath = () => '/fake/parlons-node.jar';
@@ -43,4 +44,16 @@ test('keets flags ride parlons.node.args when the sidecar is bundled', () => {
 test('no sidecar bundled -> no keets flags (dev checkout still boots)', () => {
   const flags = nodeArgsOf(builder(false).buildParlonsArgs(CFG, '/data', 20001, [], {}, true).args);
   assert.ok(!flags.includes('-keets'), 'keets flags absent: ' + flags);
+});
+
+test('pinned jar without the keets line (0.2.123, MDS) -> no keets flags even with the sidecar bundled', () => {
+  const flags = nodeArgsOf(builder(true, false).buildParlonsArgs(CFG, '/data', 20001, [], {}, true).args);
+  assert.ok(!flags.includes('-keets'), 'keets flags absent: ' + flags);
+});
+
+test('the shipped pin and PARLONS_KEETS agree (0.2.123 has MDS but refuses -keets)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '../main/node-manager.js'), 'utf8');
+  const pin = require('../package.json').parlonsNode;
+  assert.strictEqual(pin, '0.2.123');
+  assert.match(src, /const PARLONS_KEETS = false;/);
 });
