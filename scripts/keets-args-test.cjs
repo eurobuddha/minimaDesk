@@ -54,6 +54,6 @@ test('pinned jar without the keets line (0.2.123, MDS) -> no keets flags even wi
 test('the shipped pin and PARLONS_KEETS agree (0.2.142+ has MDS and keets)', () => {
   const src = fs.readFileSync(path.join(__dirname, '../main/node-manager.js'), 'utf8');
   const pin = require('../package.json').parlonsNode;
-  assert.strictEqual(pin, '0.2.143');
+  assert.strictEqual(pin, '0.2.144');
   assert.match(src, /const PARLONS_KEETS = true;/);
 });
