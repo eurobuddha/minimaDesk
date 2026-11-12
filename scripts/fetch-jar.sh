@@ -12,3 +12,7 @@ MX=$(unzip -l resources/minima.jar | grep -c 'system/network/maxima/' || true)
 MDS=$(unzip -l resources/minima.jar | grep -c 'system/mds/' || true)
 echo "maxima classes=$MX  mds classes=$MDS"
 [ "$MX" -gt 0 ] && [ "$MDS" -gt 0 ] && echo "OK — full classic jar" || { echo "WRONG JAR (missing MDS/Maxima)"; exit 1; }
+# minimaDesk's patches (scripts/patch-jar.py): each replaces one class only when the download is the exact upstream
+# class it was built from, and stops the build otherwise.
+PY="$(command -v python3 || command -v python)"
+"$PY" scripts/patch-jar.py
